@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>pr0ph3c — Ish Bhatt | Pentester</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    /* ═══════════════════════════════════════
+       TOKENS
+    ═══════════════════════════════════════ */
+    :root {
+      --bg:      #020804;
+      --bg2:     #040c06;
+      --bg3:     #061009;
+      --card:    #07120a;
+      --green:   #00ff41;
+      --green2:  #00cc33;
+      --green3:  #009922;
+      --yellow:  #ffe000;
+      --yellow2: #ffc700;
+      --dim:     #00802a;
+      --text:    #c8f0d0;
+      --muted:   #3d7a50;
+      --border:  rgba(0,255,65,0.12);
+      --border2: rgba(255,224,0,0.12);
+      --glow-g:  rgba(0,255,65,0.2);
+      --glow-y:  rgba(255,224,0,0.18);
+      --mono:    'Share Tech Mono', monospace;
+      --display: 'Bebas Neue', sans-serif;
+      --body:    'Barlow', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--body);
+      font-weight: 300;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--green3); border-radius: 3px; }
+
+    /* ── MATRIX RAIN BG ── */
+    #matrix-canvas {
+      position: fixed; inset: 0; z-index: 0;
+      pointer-events: none; opacity: 0.07;
+    }
+
+    /* ── SCAN LINE ── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.03) 0px,
+        rgba(0,0,0,0.03) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    /* ── CUSTOM CURSOR ── */
+    * { cursor: none; }
+    #cur {
+      width: 10px; height: 10px;
+      background: var(--green);
+      border-radius: 50%;
+      position: fixed; z-index: 9999; pointer-events: none;
+      transform: translate(-50%,-50%);
+      box-shadow: 0 0 8px var(--green), 0 0 20px var(--glow-g);
+      transition: transform 0.06s;
+    }
+    #cur-ring {
+      width: 32px; height: 32px;
+      border: 1px solid rgba(0,255,65,0.5);
+      border-radius: 50%;
+      position: fixed; z-index: 9998; pointer-events: none;
+      transform: translate(-50%,-50%);
+      transition: all 0.14s ease;
+    }
+
+    /* ══════════════════════════════════════
+       NAV
+    ══════════════════════════════════════ */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 600;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.9rem 5vw;
+      background: rgba(2,8,4,0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 1rem;
+      text-decoration: none;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .logo-bracket { color: var(--yellow); }
+    .logo-name    { color: var(--green); }
+    .logo-at      { color: var(--muted); }
+
+    .nav-links { display: flex; list-style: none; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 0.4rem 0.85rem;
+      letter-spacing: 0.06em;
+      transition: color 0.2s;
+      position: relative;
+    }
+    .nav-links a .num { color: var(--yellow); margin-right: 0.25rem; font-size: 0.62rem; }
+    .nav-links a:hover { color: var(--green); }
+    .nav-links a.active { color: var(--green); }
+
+    .nav-status {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-family: var(--mono); font-size: 0.7rem; color: var(--green);
+      border: 1px solid var(--border);
+      border-radius: 3px; padding: 0.3rem 0.7rem;
+    }
+    .nav-status::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    .hamburger {
+      display: none; flex-direction: column; gap: 4px;
+      background: none; border: none; padding: 4px;
+    }
+    .hamburger span { width: 20px; height: 2px; background: var(--green); border-radius: 2px; }
+
+    /* ══════════════════════════════════════
+       HERO
+    ══════════════════════════════════════ */
+    #hero {
+      min-height: 100vh;
+      display: flex; align-items: center;
+      padding: 8rem 5vw 5rem;
+      position: relative; overflow: hidden;
+    }
+
+    .hero-glow {
+      position: absolute; border-radius: 50%;
+      pointer-events: none; filter: blur(100px);
+    }
+    .glow-g {
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(0,255,65,0.06), transparent 70%);
+      top: -200px; right: -150px;
+    }
+    .glow-y {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(255,224,0,0.05), transparent 70%);
+      bottom: -50px; left: -100px;
+    }
+
+    .hero-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1.05fr 0.95fr;
+      gap: 4rem; align-items: center; width: 100%;
+      position: relative; z-index: 2;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--yellow);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 1.2rem;
+      display: flex; align-items: center; gap: 0.8rem;
+      animation: fadeUp 0.7s ease both;
+    }
+    .hero-eyebrow::before { content: '>_'; color: var(--green); }
+
+    .hero-name {
+      font-family: var(--display);
+      font-size: clamp(4rem, 7vw, 8rem);
+      line-height: 0.9;
+      letter-spacing: 0.04em;
+      color: var(--green);
+      text-shadow: 0 0 40px rgba(0,255,65,0.3);
+      animation: fadeUp 0.7s 0.08s ease both;
+    }
+    .hero-pseudo {
+      font-family: var(--mono);
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      color: var(--yellow);
+      letter-spacing: 0.08em;
+      margin-top: 0.4rem;
+      animation: fadeUp 0.7s 0.15s ease both;
+    }
+    .hero-pseudo::before { content: '// '; color: var(--dim); }
+
+    .hero-role {
+      font-family: var(--mono);
+      font-size: clamp(0.8rem, 1.2vw, 1rem);
+      color: var(--muted);
+      margin-top: 0.5rem;
+      letter-spacing: 0.05em;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+    .hero-role span { color: var(--green); }
+
+    .hero-bio {
+      margin: 1.8rem 0 2.2rem;
+      color: var(--muted);
+      font-size: 0.97rem;
+      line-height: 1.85;
+      max-width: 520px;
+      animation: fadeUp 0.7s 0.25s ease both;
+    }
+
+    .hero-btns {
+      display: flex; gap: 1rem; flex-wrap: wrap;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+
+    .btn-g {
+      background: var(--green);
+      color: #020804;
+      padding: 0.75rem 1.8rem;
+      border-radius: 3px;
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .btn-g:hover {
+      box-shadow: 0 0 24px var(--glow-g);
+      transform: translateY(-2px);
+    }
+
+    .btn-y {
+      background: transparent;
+      color: var(--yellow);
+      padding: 0.75rem 1.8rem;
+      border-radius: 3px;
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      border: 1px solid rgba(255,224,0,0.35);
+      transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    }
+    .btn-y:hover {
+      border-color: var(--yellow);
+      box-shadow: 0 0 20px var(--glow-y);
+      transform: translateY(-2px);
+    }
+
+    /* ── TERMINAL CARD ── */
+    .terminal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      animation: fadeUp 0.7s 0.18s ease both;
+      box-shadow: 0 0 60px rgba(0,255,65,0.07), inset 0 0 40px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    .t-bar {
+      background: rgba(0,255,65,0.06);
+      border-bottom: 1px solid var(--border);
+      padding: 0.55rem 1rem;
+      display: flex; align-items: center; gap: 0.45rem;
+    }
+    .t-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .td-r { background: #ff5f57; }
+    .td-y { background: #febc2e; }
+    .td-g { background: #28c840; }
+    .t-title {
+      margin-left: auto;
+      font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+    }
+
+    .t-body {
+      padding: 1.4rem 1.6rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 2;
+    }
+    .tl { display: flex; gap: 0.5rem; align-items: baseline; }
+    .tp { color: var(--green); }
+    .tc { color: var(--text); }
+    .to { color: var(--muted); padding-left: 1.1rem; }
+    .ts { color: var(--green); padding-left: 1.1rem; }
+    .tw { color: var(--yellow); padding-left: 1.1rem; }
+    .te { color: #ff5f57; padding-left: 1.1rem; }
+    .tb { height: 0.4rem; }
+    .tcur {
+      display: inline-block; width: 7px; height: 13px;
+      background: var(--green); vertical-align: text-bottom;
+      animation: blink 1.1s step-end infinite;
+    }
+
+    /* ══════════════════════════════════════
+       SHARED SECTION STYLES
+    ══════════════════════════════════════ */
+    section { padding: 6rem 5vw; position: relative; z-index: 2; }
+    .si { max-width: 1200px; margin: 0 auto; }
+
+    .slabel {
+      font-family: var(--mono);
+      font-size: 0.68rem; color: var(--yellow);
+      letter-spacing: 0.16em; text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .slabel::before { content: '>_'; color: var(--green); margin-right: 0.15rem; }
+
+    h2 {
+      font-family: var(--display);
+      font-size: clamp(2.2rem, 4vw, 3.8rem);
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      line-height: 1.0;
+      margin-bottom: 0.8rem;
+    }
+
+    .ssub {
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 560px;
+      margin-bottom: 3rem;
+      line-height: 1.8;
+    }
+
+    .divider {
+      width: 100%; height: 1px;
+      background: linear-gradient(90deg, var(--green3), transparent);
+      margin-bottom: 3rem;
+    }
+
+    /* ── REVEAL ── */
+    .reveal {
+      opacity: 0; transform: translateY(28px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+    .reveal.vis { opacity: 1; transform: none; }
+
+    /* ══════════════════════════════════════
+       ABOUT
+    ══════════════════════════════════════ */
+    #about { background: var(--bg2); }
+
+    .about-grid {
+      display: grid; grid-template-columns: 1.1fr 0.9fr;
+      gap: 4rem; align-items: start;
+    }
+
+    .about-text p {
+      color: var(--muted); margin-bottom: 1.2rem;
+      line-height: 1.85; font-size: 0.97rem;
+    }
+    .about-text strong { color: var(--green); font-weight: 600; }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+    .tag {
+      background: rgba(0,255,65,0.06);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.28rem 0.8rem;
+      font-family: var(--mono); font-size: 0.68rem;
+      color: var(--green); letter-spacing: 0.08em;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .tag:hover { background: rgba(0,255,65,0.14); border-color: var(--green3); }
+    .tag.yellow {
+      background: rgba(255,224,0,0.06);
+      border-color: var(--border2);
+      color: var(--yellow);
+    }
+    .tag.yellow:hover { background: rgba(255,224,0,0.12); border-color: var(--yellow2); }
+
+    .stat-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem 1.2rem;
+      text-align: center;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .stat-box:hover { border-color: var(--green3); transform: translateY(-4px); }
+    .stat-n {
+      font-family: var(--display);
+      font-size: 2.6rem; letter-spacing: 0.04em;
+      color: var(--green);
+      text-shadow: 0 0 20px var(--glow-g);
+    }
+    .stat-l {
+      font-family: var(--mono); font-size: 0.65rem;
+      color: var(--muted); letter-spacing: 0.08em; margin-top: 0.2rem;
+    }
+
+    /* ══════════════════════════════════════
+       EXPERTISE
+    ══════════════════════════════════════ */
+    #expertise { background: var(--bg); }
+
+    .expertise-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.2rem;
+    }
+
+    .exp-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.8rem;
+      position: relative; overflow: hidden;
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+    }
+    .exp-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--green), transparent);
+      transform: scaleX(0); transform-origin: left;
+      transition: transform 0.35s;
+    }
+    .exp-card:hover {
+      border-color: var(--green3);
+      transform: translateY(-5px);
+      box-shadow: 0 16px 40px rgba(0,255,65,0.08);
+    }
+    .exp-card:hover::before { transform: scaleX(1); }
+
+    .exp-icon {
+      font-size: 1.8rem; margin-bottom: 1rem;
+      display: block;
+    }
+    .exp-title {
+      font-family: var(--mono); font-size: 0.85rem;
+      color: var(--green); font-weight: 700;
+      margin-bottom: 0.6rem; letter-spacing: 0.04em;
+    }
+    .exp-desc {
+      font-size: 0.86rem; color: var(--muted); line-height: 1.7;
+    }
+    .exp-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; }
+    .exp-tag {
+      background: rgba(0,255,65,0.05);
+      border: 1px solid rgba(0,255,65,0.1);
+      border-radius: 2px;
+      padding: 0.15rem 0.5rem;
+      font-family: var(--mono); font-size: 0.62rem;
+      color: var(--dim); letter-spacing: 0.06em;
+    }
+
+    /* ══════════════════════════════════════
+       SKILLS
+    ══════════════════════════════════════ */
+    #skills { background: var(--bg2); }
+
+    .skills-wrap {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
+    }
+
+    .sg-title {
+      font-family: var(--mono); font-size: 0.68rem;
+      color: var(--yellow); letter-spacing: 0.12em;
+      text-transform: uppercase; margin-bottom: 1.2rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(255,224,0,0.12);
+    }
+
+    .sbar { margin-bottom: 1.1rem; }
+    .sbar-top {
+      display: flex; justify-content: space-between;
+      margin-bottom: 0.3rem;
+    }
+    .sbar-name { font-family: var(--mono); font-size: 0.78rem; color: var(--text); }
+    .sbar-pct  { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+    .sbar-track {
+      height: 3px; background: rgba(255,255,255,0.04);
+      border-radius: 3px; overflow: hidden;
+    }
+    .sbar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green3), var(--green));
+      border-radius: 3px;
+      transform: scaleX(0); transform-origin: left;
+      transition: transform 1.3s cubic-bezier(0.16,1,0.3,1);
+    }
+    .sbar.vis .sbar-fill { transform: scaleX(1); }
+
+    .tools-cloud { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .tool {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.3rem 0.75rem;
+      font-family: var(--mono); font-size: 0.7rem;
+      color: var(--muted);
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .tool:hover { color: var(--green); border-color: var(--green3); background: rgba(0,255,65,0.05); }
+    .tool.y:hover { color: var(--yellow); border-color: rgba(255,224,0,0.4); background: rgba(255,224,0,0.05); }
+
+    /* ══════════════════════════════════════
+       EXPERIENCE / TIMELINE
+    ══════════════════════════════════════ */
+    #experience { background: var(--bg); }
+
+    .timeline { position: relative; padding-left: 2.2rem; }
+    .timeline::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0; width: 1px;
+      background: linear-gradient(180deg, var(--green), var(--green3), rgba(0,255,65,0.05));
+    }
+
+    .tli {
+      position: relative;
+      padding-bottom: 3rem; margin-bottom: 0;
+    }
+    .tli:last-child { padding-bottom: 0; }
+
+    .tli-dot {
+      position: absolute; left: -2.2rem;
+      top: 0.3rem;
+      width: 13px; height: 13px;
+      background: var(--bg);
+      border: 2px solid var(--green3);
+      border-radius: 50%;
+      transform: translateX(-50%);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .tli:hover .tli-dot {
+      border-color: var(--green);
+      box-shadow: 0 0 12px var(--glow-g);
+    }
+    .tli-dot.now {
+      background: var(--green);
+      border-color: var(--green);
+      box-shadow: 0 0 10px var(--glow-g);
+    }
+
+    .tli-head {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; flex-wrap: wrap; gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .tli-title {
+      font-family: var(--display); font-size: 1.5rem;
+      letter-spacing: 0.04em; line-height: 1;
+    }
+    .tli-co { color: var(--green); }
+    .tli-meta {
+      display: flex; gap: 1.2rem; flex-wrap: wrap;
+      font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+    }
+    .tli-desc {
+      font-size: 0.92rem; color: var(--muted);
+      margin: 0.5rem 0 1rem; line-height: 1.8;
+    }
+    .tli-list { list-style: none; }
+    .tli-list li {
+      font-size: 0.88rem; color: var(--muted);
+      margin-bottom: 0.45rem;
+      display: flex; gap: 0.6rem; align-items: flex-start;
+      line-height: 1.6;
+    }
+    .tli-list li::before {
+      content: '→';
+      color: var(--yellow); flex-shrink: 0;
+    }
+    .tli-line {
+      height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+      margin: 2rem 0;
+    }
+
+    /* ══════════════════════════════════════
+       CERTIFICATIONS
+    ══════════════════════════════════════ */
+    #certifications { background: var(--bg2); }
+
+    .certs-note {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2rem 2.5rem;
+      font-family: var(--mono); font-size: 0.82rem;
+      color: var(--muted);
+      display: flex; align-items: flex-start; gap: 1.2rem;
+      max-width: 680px;
+    }
+    .certs-note-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .certs-note-text p { margin-bottom: 0.5rem; }
+    .certs-note-text strong { color: var(--green); }
+    .certs-note-text em { color: var(--yellow); font-style: normal; }
+
+    .certs-placeholder {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem; margin-top: 2rem;
+    }
+    .cert-ph {
+      background: var(--card);
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.3rem;
+      display: flex; align-items: center; gap: 0.8rem;
+      transition: border-color 0.2s;
+    }
+    .cert-ph:hover { border-color: var(--green3); }
+    .cert-ph-icon {
+      width: 38px; height: 38px; flex-shrink: 0;
+      background: rgba(0,255,65,0.05);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+    .cert-ph-name {
+      font-family: var(--mono); font-size: 0.72rem; color: var(--muted);
+    }
+    .cert-ph-label {
+      font-family: var(--mono); font-size: 0.6rem; color: var(--dim);
+      margin-top: 0.15rem;
+    }
+
+    /* ══════════════════════════════════════
+       CONTACT
+    ══════════════════════════════════════ */
+    #contact { background: var(--bg); }
+
+    .contact-wrap {
+      display: grid; grid-template-columns: 1fr 1.4fr; gap: 4rem; align-items: start;
+    }
+
+    .contact-left h3 {
+      font-family: var(--display); font-size: 2.4rem;
+      letter-spacing: 0.04em; line-height: 1.05;
+      margin-bottom: 0.8rem;
+    }
+    .contact-left h3 span { color: var(--green); }
+    .contact-left p {
+      color: var(--muted); font-size: 0.92rem;
+      line-height: 1.8; margin-bottom: 2rem;
+    }
+
+    .clinks { display: flex; flex-direction: column; }
+    .clink {
+      display: flex; align-items: center; gap: 1rem;
+      text-decoration: none; color: var(--muted);
+      font-family: var(--mono); font-size: 0.78rem;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
+      transition: color 0.2s;
+    }
+    .clink:first-child { border-top: 1px solid var(--border); }
+    .clink:hover { color: var(--green); }
+    .clink-icon {
+      width: 36px; height: 36px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 5px; display: flex; align-items: center;
+      justify-content: center; font-size: 0.9rem; flex-shrink: 0;
+    }
+
+    .cf { display: flex; flex-direction: column; gap: 1rem; }
+    .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .fg { display: flex; flex-direction: column; gap: 0.3rem; }
+    .fg label {
+      font-family: var(--mono); font-size: 0.65rem;
+      color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .fg input, .fg textarea {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.78rem 1rem;
+      color: var(--text);
+      font-family: var(--mono); font-size: 0.8rem;
+      outline: none; resize: none;
+      transition: border-color 0.25s;
+    }
+    .fg input::placeholder, .fg textarea::placeholder { color: var(--muted); opacity: 0.5; }
+    .fg input:focus, .fg textarea:focus { border-color: var(--green3); }
+    .fg textarea { min-height: 120px; }
+
+    .btn-submit {
+      align-self: flex-start;
+      background: var(--green);
+      color: #020804;
+      border: none;
+      padding: 0.85rem 2rem;
+      border-radius: 3px;
+      font-family: var(--mono); font-size: 0.8rem;
+      font-weight: 700; letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .btn-submit:hover {
+      box-shadow: 0 0 24px var(--glow-g);
+      transform: translateY(-2px);
+    }
+
+    /* ══════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════ */
+    footer {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 2rem 5vw;
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+      position: relative; z-index: 2;
+    }
+    .foot-l { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+    .foot-l span { color: var(--green); }
+    .foot-r { display: flex; gap: 1.5rem; }
+    .foot-r a {
+      font-family: var(--mono); font-size: 0.7rem;
+      color: var(--muted); text-decoration: none;
+      transition: color 0.2s;
+    }
+    .foot-r a:hover { color: var(--green); }
+
+    /* ══════════════════════════════════════
+       KEYFRAMES
+    ══════════════════════════════════════ */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green); }
+      50%       { opacity: 0.4; box-shadow: none; }
+    }
+    @keyframes flicker {
+      0%, 95%, 100% { opacity: 1; }
+      96%            { opacity: 0.6; }
+      98%            { opacity: 0.9; }
+    }
+
+    /* ══════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════ */
+    @media (max-width: 920px) {
+      .hero-inner, .about-grid, .contact-wrap { grid-template-columns: 1fr; }
+      .terminal-col { display: none; }
+      .nav-links { display: none; }
+      .hamburger { display: flex; }
+      .skills-wrap { grid-template-columns: 1fr; }
+      .frow { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- MATRIX CANVAS -->
+<canvas id="matrix-canvas"></canvas>
+
+<!-- CURSOR -->
+<div id="cur"></div>
+<div id="cur-ring"></div>
+
+<!-- ═══ NAV ═══ -->
+<nav id="nav">
+  <a href="#hero" class="logo">
+    <span class="logo-bracket">[</span><span class="logo-name">pr0ph3c</span><span class="logo-at">@sec</span><span class="logo-bracket">]</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#about"><span class="num">01.</span>about</a></li>
+    <li><a href="#expertise"><span class="num">02.</span>expertise</a></li>
+    <li><a href="#skills"><span class="num">03.</span>skills</a></li>
+    <li><a href="#experience"><span class="num">04.</span>experience</a></li>
+    <li><a href="#certifications"><span class="num">05.</span>certs</a></li>
+    <li><a href="#contact"><span class="num">06.</span>contact</a></li>
+  </ul>
+  <div class="nav-status">sys::active</div>
+  <button class="hamburger" onclick="toggleNav()"><span></span><span></span><span></span></button>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section id="hero">
+  <div class="hero-glow glow-g"></div>
+  <div class="hero-glow glow-y"></div>
+  <div class="hero-inner">
+
+    <div class="hero-left">
+      <div class="hero-eyebrow">pentester &amp; security researcher</div>
+      <div class="hero-name">ISH<br>BHATT</div>
+      <div class="hero-pseudo">pr0ph3c</div>
+      <div class="hero-role">Penetration Tester @ <span>Stryker</span> · 3 yrs exp</div>
+      <p class="hero-bio">
+        Hardware &amp; IoT security specialist with deep expertise across embedded systems, 5G telecom, enterprise red teaming, and network / web application pentesting. I find the vulnerabilities that matter before adversaries do.
+      </p>
+      <div class="hero-btns">
+        <a href="#expertise" class="btn-g">./view_expertise</a>
+        <a href="#contact"   class="btn-y">./hire_me</a>
+      </div>
+    </div>
+
+    <div class="terminal-col">
+      <div class="terminal">
+        <div class="t-bar">
+          <div class="t-dot td-r"></div>
+          <div class="t-dot td-y"></div>
+          <div class="t-dot td-g"></div>
+          <div class="t-title">pr0ph3c@stryker:~ $</div>
+        </div>
+        <div class="t-body">
+          <div class="tl"><span class="tp">$</span><span class="tc"> whoami</span></div>
+          <div class="to">Ish Bhatt <span style="color:var(--green)">// pr0ph3c</span></div>
+          <div class="tb"></div>
+          <div class="tl"><span class="tp">$</span><span class="tc"> cat role.txt</span></div>
+          <div class="to">Penetration Tester @ Stryker</div>
+          <div class="to">Experience: <span style="color:var(--yellow)">~3 years</span></div>
+          <div class="tb"></div>
+          <div class="tl"><span class="tp">$</span><span class="tc"> ./list_domains.sh</span></div>
+          <div class="ts">[+] Hardware Pentesting</div>
+          <div class="ts">[+] IoT &amp; Embedded Systems</div>
+          <div class="ts">[+] 5G Telecom Security</div>
+          <div class="ts">[+] Network Pentesting</div>
+          <div class="ts">[+] Web Application Pentesting</div>
+          <div class="ts">[+] SCA / Fault Injection</div>
+          <div class="ts">[+] Enterprise Red Teaming</div>
+          <div class="tb"></div>
+          <div class="tl"><span class="tp">$</span><span class="tc"> nmap -sV stryker.com</span></div>
+          <div class="ts">[+] Target secured. Nice try.</div>
+          <div class="tb"></div>
+          <div class="tl"><span class="tp">$</span><span class="tcur"></span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ ABOUT ═══ -->
+<section id="about">
+  <div class="si">
+    <div class="about-grid">
+      <div class="reveal">
+        <div class="slabel">about me</div>
+        <h2>Hack the <span style="color:var(--green)">Hardware,</span><br>Secure the Future</h2>
+        <div class="about-text">
+          <p>I'm <strong>Ish Bhatt</strong>, a penetration tester at <strong>Stryker</strong> with nearly 3 years of experience breaking and securing some of the most complex systems in the industry — from medical-grade embedded devices to enterprise network infrastructure.</p>
+          <p>My work spans the full attack surface: silicon-level hardware, firmware, wireless protocols, 5G telecom stacks, enterprise Active Directory environments, and web applications. I specialise in finding vulnerabilities that conventional scanners miss.</p>
+          <p>Operating under the alias <strong>pr0ph3c</strong>, I approach security with a hacker's mindset — creative, methodical, and relentless. If it has firmware, I'll find a way in.</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag">Hardware Pentesting</span>
+          <span class="tag">IoT Security</span>
+          <span class="tag">Embedded Systems</span>
+          <span class="tag yellow">5G Telecom</span>
+          <span class="tag yellow">Red Teaming</span>
+          <span class="tag">SCA/FI</span>
+          <span class="tag">Network Sec</span>
+          <span class="tag">Web AppSec</span>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-n">3</div>
+            <div class="stat-l">years_at_stryker</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-n">7</div>
+            <div class="stat-l">security_domains</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-n">∞</div>
+            <div class="stat-l">vulns_hunting</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-n" style="color:var(--yellow)">HW</div>
+            <div class="stat-l">hardware_specialist</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ EXPERTISE ═══ -->
+<section id="expertise">
+  <div class="si">
+    <div class="slabel reveal">core domains</div>
+    <h2 class="reveal">Areas of <span style="color:var(--yellow)">Expertise</span></h2>
+    <p class="ssub reveal">Specialised attack &amp; assessment capabilities across hardware, firmware, wireless, and enterprise layers.</p>
+    <div class="divider reveal"></div>
+
+    <div class="expertise-grid">
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">🔩</span>
+        <div class="exp-title">Hardware Pentesting</div>
+        <div class="exp-desc">Physical interface attacks, JTAG/UART/SPI exploitation, debug port enumeration, PCB-level analysis, and firmware extraction via hardware methods.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">JTAG</span>
+          <span class="exp-tag">UART</span>
+          <span class="exp-tag">SPI/I2C</span>
+          <span class="exp-tag">PCB Analysis</span>
+        </div>
+      </div>
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">📡</span>
+        <div class="exp-title">IoT &amp; Embedded Systems</div>
+        <div class="exp-desc">End-to-end IoT security assessments: firmware reverse engineering, RTOS vulnerabilities, bootloader analysis, OTA update tampering, and cloud-backend enumeration.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">Firmware RE</span>
+          <span class="exp-tag">RTOS</span>
+          <span class="exp-tag">Binwalk</span>
+          <span class="exp-tag">Ghidra</span>
+        </div>
+      </div>
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">🔑</span>
+        <div class="exp-title">SCA / Fault Injection</div>
+        <div class="exp-desc">Side-channel analysis including power, EM, and timing attacks. Voltage and clock glitching for bypass attacks, key extraction, and cryptographic implementation analysis.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">Power Analysis</span>
+          <span class="exp-tag">EM Analysis</span>
+          <span class="exp-tag">Glitching</span>
+          <span class="exp-tag">ChipWhisperer</span>
+        </div>
+      </div>
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">📶</span>
+        <div class="exp-title">5G Telecom Security</div>
+        <div class="exp-desc">Security assessment of 5G network functions, protocol stack vulnerabilities, UE/RAN/core enumeration, signalling attacks, and telecom-specific threat modelling.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">5G NR</span>
+          <span class="exp-tag">NAS/RRC</span>
+          <span class="exp-tag">Core Network</span>
+          <span class="exp-tag">SS7/Diameter</span>
+        </div>
+      </div>
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">🌐</span>
+        <div class="exp-title">Network Pentesting</div>
+        <div class="exp-desc">Internal &amp; external network assessments, segmentation bypass, lateral movement, AD exploitation, VPN analysis, and protocol-level attacks across enterprise environments.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">Nmap</span>
+          <span class="exp-tag">AD Attacks</span>
+          <span class="exp-tag">Lateral Mov.</span>
+          <span class="exp-tag">Pivoting</span>
+        </div>
+      </div>
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">🕸️</span>
+        <div class="exp-title">Web Application Pentesting</div>
+        <div class="exp-desc">OWASP Top 10 and beyond — manual &amp; automated discovery of XSS, SQLi, SSRF, IDOR, authentication flaws, API vulnerabilities, and business logic issues.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">Burp Suite</span>
+          <span class="exp-tag">OWASP</span>
+          <span class="exp-tag">API Sec</span>
+          <span class="exp-tag">Auth Bypass</span>
+        </div>
+      </div>
+
+      <div class="exp-card reveal">
+        <span class="exp-icon">🎯</span>
+        <div class="exp-title">Enterprise Red Teaming</div>
+        <div class="exp-desc">Full-scope adversary simulation — initial access, persistence, privilege escalation, lateral movement, and objective-based operations against enterprise-grade defences.</div>
+        <div class="exp-tags">
+          <span class="exp-tag">C2 Frameworks</span>
+          <span class="exp-tag">Phishing</span>
+          <span class="exp-tag">Priv Esc</span>
+          <span class="exp-tag">AD Abuse</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SKILLS ═══ -->
+<section id="skills">
+  <div class="si">
+    <div class="slabel reveal">technical stack</div>
+    <h2 class="reveal">Skills &amp; <span style="color:var(--green)">Tools</span></h2>
+    <p class="ssub reveal">Battle-tested tools and capabilities built through real engagements across hardware, software, and wireless attack surfaces.</p>
+
+    <div class="skills-wrap">
+      <div class="reveal">
+        <div class="sg-title">// offensive capabilities</div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">Hardware / IoT Pentesting</span><span class="sbar-pct">95%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.95"></div></div></div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">SCA &amp; Fault Injection</span><span class="sbar-pct">90%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.90"></div></div></div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">5G / Telecom Security</span><span class="sbar-pct">88%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.88"></div></div></div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">Enterprise Red Teaming</span><span class="sbar-pct">87%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.87"></div></div></div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">Network Pentesting</span><span class="sbar-pct">92%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.92"></div></div></div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">Web Application Pentesting</span><span class="sbar-pct">89%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.89"></div></div></div>
+        <div class="sbar"><div class="sbar-top"><span class="sbar-name">Firmware Reverse Engineering</span><span class="sbar-pct">85%</span></div><div class="sbar-track"><div class="sbar-fill" style="--w:0.85"></div></div></div>
+      </div>
+
+      <div class="reveal">
+        <div class="sg-title">// hardware &amp; hw tools</div>
+        <div class="tools-cloud" style="margin-bottom:1.6rem">
+          <span class="tool">ChipWhisperer</span>
+          <span class="tool">Bus Pirate</span>
+          <span class="tool">JTAGulator</span>
+          <span class="tool">Logic Analyzer</span>
+          <span class="tool">Oscilloscope</span>
+          <span class="tool">HackRF</span>
+          <span class="tool">Flipper Zero</span>
+          <span class="tool">Proxmark</span>
+          <span class="tool">OpenOCD</span>
+          <span class="tool">GDB</span>
+        </div>
+
+        <div class="sg-title">// software &amp; frameworks</div>
+        <div class="tools-cloud" style="margin-bottom:1.6rem">
+          <span class="tool">Ghidra</span>
+          <span class="tool">IDA Pro</span>
+          <span class="tool">Binwalk</span>
+          <span class="tool">Burp Suite</span>
+          <span class="tool">Metasploit</span>
+          <span class="tool">Nmap</span>
+          <span class="tool">Wireshark</span>
+          <span class="tool">Bloodhound</span>
+          <span class="tool">Impacket</span>
+          <span class="tool">CobaltStrike</span>
+          <span class="tool">Frida</span>
+          <span class="tool">QEMU</span>
+        </div>
+
+        <div class="sg-title">// languages &amp; scripting</div>
+        <div class="tools-cloud">
+          <span class="tool y">Python</span>
+          <span class="tool y">C / C++</span>
+          <span class="tool y">Bash</span>
+          <span class="tool y">Assembly (ARM/x86)</span>
+          <span class="tool y">JavaScript</span>
+          <span class="tool y">PowerShell</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ EXPERIENCE ═══ -->
+<section id="experience">
+  <div class="si">
+    <div class="slabel reveal">career</div>
+    <h2 class="reveal">Work <span style="color:var(--yellow)">Experience</span></h2>
+    <p class="ssub reveal">Professional security engagements focused on protecting complex, high-stakes systems across regulated industries.</p>
+
+    <div class="timeline reveal">
+
+      <div class="tli">
+        <div class="tli-dot now"></div>
+        <div class="tli-head">
+          <div>
+            <div class="tli-title">Penetration Tester <span class="tli-co">@ Stryker</span></div>
+            <div class="tli-meta">
+              <span>📍 Pune, India (Hybrid)</span>
+              <span>🗓 2022 — Present · ~3 yrs</span>
+            </div>
+          </div>
+        </div>
+        <div class="tli-desc">
+          Conducting comprehensive security assessments across Stryker's product lines — spanning medical-grade hardware, IoT-connected devices, embedded firmware, enterprise infrastructure, and web applications. Primary focus on hardware security and advanced adversarial simulation.
+        </div>
+        <ul class="tli-list">
+          <li>Lead hardware penetration testing of medical IoT devices — JTAG/UART debug extraction, firmware analysis, and hardware interface exploitation</li>
+          <li>Perform SCA and fault injection assessments against cryptographic implementations in embedded systems</li>
+          <li>Execute full-scope enterprise red team operations — phishing, C2, lateral movement, and AD compromise</li>
+          <li>Conduct 5G telecom security assessments including NAS/RRC protocol analysis and core network enumeration</li>
+          <li>Deliver web application and API penetration tests across Stryker's digital product portfolio aligned to OWASP methodology</li>
+          <li>Author detailed penetration testing reports with business-context risk ratings and PoC-backed remediation guidance</li>
+        </ul>
+        <div class="tli-line"></div>
+      </div>
+
+      <div class="tli">
+        <div class="tli-dot"></div>
+        <div class="tli-head">
+          <div>
+            <div class="tli-title">Independent Security Researcher</div>
+            <div class="tli-meta">
+              <span>📍 Remote</span>
+              <span>🗓 Ongoing</span>
+            </div>
+          </div>
+        </div>
+        <div class="tli-desc">
+          Continuous independent research into hardware attack techniques, emerging embedded vulnerabilities, and 5G/telecom security — presenting findings to the security community.
+        </div>
+        <ul class="tli-list">
+          <li>Active hardware and firmware security research targeting consumer IoT and industrial embedded devices</li>
+          <li>CTF player with focus on reverse engineering, hardware, and pwn challenges</li>
+          <li>Exploring offensive capabilities across RFID, Bluetooth LE, Zigbee, and LoRa wireless protocols</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CERTIFICATIONS ═══ -->
+<section id="certifications">
+  <div class="si">
+    <div class="slabel reveal">credentials</div>
+    <h2 class="reveal">Certifications &amp; <span style="color:var(--green)">Achievements</span></h2>
+    <p class="ssub reveal">A track record of formal credentials and recognition across the security community.</p>
+
+    <div class="certs-note reveal">
+      <div class="certs-note-icon">🔐</div>
+      <div class="certs-note-text">
+        <p><strong>Certifications being added.</strong> This section is reserved for Ish's formal credentials.</p>
+        <p>To populate: replace the placeholders below with your actual certs — <em>OSCP, CRTO, CRTE, eCPTX, GXPN</em> or any others you hold. Each card takes an icon, title, issuer, and date.</p>
+      </div>
+    </div>
+
+    <div class="certs-placeholder">
+      <div class="cert-ph reveal">
+        <div class="cert-ph-icon">🏆</div>
+        <div>
+          <div class="cert-ph-name">Your Cert Here</div>
+          <div class="cert-ph-label">Issuer · Year</div>
+        </div>
+      </div>
+      <div class="cert-ph reveal">
+        <div class="cert-ph-icon">🎯</div>
+        <div>
+          <div class="cert-ph-name">Your Cert Here</div>
+          <div class="cert-ph-label">Issuer · Year</div>
+        </div>
+      </div>
+      <div class="cert-ph reveal">
+        <div class="cert-ph-icon">🛡️</div>
+        <div>
+          <div class="cert-ph-name">Your Cert Here</div>
+          <div class="cert-ph-label">Issuer · Year</div>
+        </div>
+      </div>
+      <div class="cert-ph reveal">
+        <div class="cert-ph-icon">🔩</div>
+        <div>
+          <div class="cert-ph-name">Your Cert Here</div>
+          <div class="cert-ph-label">Issuer · Year</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CONTACT ═══ -->
+<section id="contact">
+  <div class="si">
+    <div class="contact-wrap">
+
+      <div class="reveal">
+        <div class="slabel">get in touch</div>
+        <h3>Available for<br><span>Engagements</span></h3>
+        <p>Interested in a security assessment, research collaboration, or want to discuss hardware attack techniques? I'm reachable via the links below — I respond within 24 hours.</p>
+        <div class="clinks">
+          <a href="https://github.com/" class="clink" target="_blank" rel="noopener">
+            <div class="clink-icon">🐙</div>github.com/pr0ph3c
+          </a>
+          <a href="https://linkedin.com/in/" class="clink" target="_blank" rel="noopener">
+            <div class="clink-icon">💼</div>linkedin.com/in/ishbhatt
+          </a>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="cf">
+          <div class="frow">
+            <div class="fg"><label>first_name</label><input type="text" placeholder="Jane"/></div>
+            <div class="fg"><label>last_name</label><input type="text" placeholder="Doe"/></div>
+          </div>
+          <div class="fg"><label>email</label><input type="email" placeholder="you@company.com"/></div>
+          <div class="fg"><label>subject</label><input type="text" placeholder="Hardware assessment · Red team · Research..."/></div>
+          <div class="fg"><label>message</label><textarea placeholder="Describe your engagement or question..."></textarea></div>
+          <button class="btn-submit">./send_message</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="foot-l">© <span id="yr"></span> <span>Ish Bhatt (pr0ph3c)</span>. All rights reserved.</div>
+  <div class="foot-r">
+    <a href="#hero">↑ top</a>
+    <a href="#expertise">expertise</a>
+    <a href="#contact">contact</a>
+    <a href="https://github.com/" target="_blank" rel="noopener">github</a>
+    <a href="https://linkedin.com/in/" target="_blank" rel="noopener">linkedin</a>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════
+     SCRIPTS
+═══════════════════════════════════════ -->
+<script>
+/* ── year ── */
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+/* ── matrix rain ── */
+(function(){
+  const canvas = document.getElementById('matrix-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, cols, drops;
+
+  function init() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    const fs = 13;
+    cols  = Math.floor(W / fs);
+    drops = Array(cols).fill(1);
+  }
+  init();
+  window.addEventListener('resize', init);
+
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()_+-=[]{}|;:,.<>?/\\~`プロフェクイシュバット';
+
+  function draw() {
+    ctx.fillStyle = 'rgba(2,8,4,0.05)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = '13px Share Tech Mono, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const brightness = Math.random();
+      if (brightness > 0.97) {
+        ctx.fillStyle = '#ffe000';
+      } else if (brightness > 0.9) {
+        ctx.fillStyle = '#00ff41';
+      } else {
+        ctx.fillStyle = '#00802a';
+      }
+      ctx.fillText(ch, i * 13, drops[i] * 13);
+      if (drops[i] * 13 > H && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+  setInterval(draw, 45);
+})();
+
+/* ── custom cursor ── */
+const cur  = document.getElementById('cur');
+const ring = document.getElementById('cur-ring');
+document.addEventListener('mousemove', e => {
+  cur.style.left  = e.clientX + 'px';
+  cur.style.top   = e.clientY + 'px';
+  setTimeout(() => {
+    ring.style.left = e.clientX + 'px';
+    ring.style.top  = e.clientY + 'px';
+  }, 70);
+});
+document.querySelectorAll('a,button,input,textarea').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    ring.style.width  = '56px';
+    ring.style.height = '56px';
+    ring.style.borderColor = 'rgba(255,224,0,0.6)';
+  });
+  el.addEventListener('mouseleave', () => {
+    ring.style.width  = '32px';
+    ring.style.height = '32px';
+    ring.style.borderColor = 'rgba(0,255,65,0.5)';
+  });
+});
+
+/* ── scroll reveal ── */
+const reveals = document.querySelectorAll('.reveal');
+const ro = new IntersectionObserver(entries => {
+  entries.forEach((e, idx) => {
+    if (e.isIntersecting) {
+      const delay = (e.target.dataset.delay || 0);
+      e.target.style.transitionDelay = delay + 's';
+      e.target.classList.add('vis');
+    }
+  });
+}, { threshold: 0.08 });
+reveals.forEach((el, i) => {
+  el.dataset.delay = ((i % 5) * 0.07).toFixed(2);
+  ro.observe(el);
+});
+
+/* ── skill bars ── */
+const sbars = document.querySelectorAll('.sbar');
+const sro = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis'); });
+}, { threshold: 0.2 });
+sbars.forEach(s => sro.observe(s));
+
+/* ── active nav ── */
+const sections = document.querySelectorAll('section[id]');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 220) cur = s.id; });
+  document.querySelectorAll('.nav-links a').forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+  });
+  document.getElementById('nav').style.boxShadow =
+    window.scrollY > 40 ? '0 4px 30px rgba(0,255,65,0.05)' : '';
+});
+
+/* ── mobile nav ── */
+function toggleNav() {
+  const nl = document.querySelector('.nav-links');
+  if (nl.style.display === 'flex') {
+    nl.style.display = 'none';
+  } else {
+    Object.assign(nl.style, {
+      display: 'flex', flexDirection: 'column',
+      position: 'absolute', top: '58px', left: 0, right: 0,
+      background: 'rgba(2,8,4,0.97)',
+      padding: '1rem 5vw',
+      borderBottom: '1px solid var(--border)'
+    });
+  }
+}
+
+/* ── glitch flicker on hero name ── */
+const heroName = document.querySelector('.hero-name');
+setInterval(() => {
+  if (Math.random() > 0.94) {
+    heroName.style.textShadow = '2px 0 #ffe000, -2px 0 #00ff41, 0 0 40px rgba(0,255,65,0.4)';
+    setTimeout(() => {
+      heroName.style.textShadow = '0 0 40px rgba(0,255,65,0.3)';
+    }, 80);
+  }
+}, 1500);
+</script>
+</body>
+</html>
