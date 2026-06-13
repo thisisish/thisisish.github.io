@@ -22,7 +22,7 @@ window.BLOGS = [
     date: "2026-05-25",
     read: "16 min",
     tag: "active-directory",
-    link: "writeups/fluffy.html",
+    link: "writeups/fluffy/fluffy.html",
     excerpt: "Full-chain Active Directory compromise on Fluffy (Easy · Windows): CVE-2025-24071 NTLM hash leak, GenericAll/GenericWrite abuse, shadow credentials via PyWhisker, UnPAC-the-Hash, and an ADCS ESC16 UPN-spoof straight to Administrator.",
   },
 
