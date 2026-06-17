@@ -4,9 +4,18 @@
    scripts/build-blogs.js (runs on every push via
    .github/workflows/blogs.yml). To change a post, edit that post's
    post-meta block. To add one, just commit a new writeup .html.
-   Generated: 2026-06-13T17:31:40.058Z
+   Generated: 2026-06-17T03:31:51.836Z
    ===================================================================== */
 window.BLOGS = [
+  {
+    "title": "HTB: CheckPoint — BadSuccessor (dMSA) & VM Memory Forensics",
+    "category": "Writeups",
+    "date": "2026-06-13",
+    "read": "12 min",
+    "tag": "active-directory",
+    "excerpt": "Review & attack-path map for CheckPoint (Active · Windows Server 2025): AD Recycle Bin restore + password reuse, a malicious VS Code .vsix foothold, the 2025 BadSuccessor / dMSA DACL-abuse path, and recovering the local admin hash from a VM memory snapshot. Conceptual only — full walkthrough held until the box retires.",
+    "link": "writeups/Checkpoint/Checkpoint.html"
+  },
   {
     "title": "HTB: Helix — Apache NiFi RCE to OPC UA ICS Root",
     "category": "Writeups",
