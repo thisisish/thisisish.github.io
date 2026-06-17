@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CheckPoint &mdash; HTB Writeup // pr0ph3c</title>
+<meta name="description" content="Hack The Box: CheckPoint (Active · Windows Server 2025) — AD Recycle Bin abuse, malicious .vsix foothold, BadSuccessor/dMSA DACL abuse, and VM memory forensics to root. Review & attack-path map by pr0ph3c (Ish Bhatt)." />
+<!-- POST METADATA — single source of truth for the homepage blog index.
+     Edit these fields to change how this writeup appears on the portfolio. -->
+<script type="application/json" id="post-meta">
+{
+  "title": "HTB: CheckPoint — BadSuccessor (dMSA) & VM Memory Forensics",
+  "category": "Writeups",
+  "date": "2026-06-13",
+  "read": "12 min",
+  "tag": "active-directory",
+  "excerpt": "Review & attack-path map for CheckPoint (Active · Windows Server 2025): AD Recycle Bin restore + password reuse, a malicious VS Code .vsix foothold, the 2025 BadSuccessor / dMSA DACL-abuse path, and recovering the local admin hash from a VM memory snapshot. Conceptual only — full walkthrough held until the box retires."
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0d1117;--panel:#161b22;--panel2:#1c232c;--line:#222b35;--mute:#7d8a99;--soft:#aab6c2;--term:#00ff66;--crim:#ff3333;--amber:#ffb000;--blue:#4d9fff;color-scheme:dark;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;max-width:100%;overflow-x:hidden;}
+body{background:var(--ink);color:var(--soft);font-family:"JetBrains Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;max-width:100%;overflow-x:hidden;}
+::selection{background:rgba(0,255,102,.25);color:#eaffef;}
+::-webkit-scrollbar{width:9px;height:9px;}::-webkit-scrollbar-track{background:var(--ink);}::-webkit-scrollbar-thumb{background:var(--line);border:2px solid var(--ink);}::-webkit-scrollbar-thumb:hover{background:var(--term);}
+a{color:var(--term);}
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;background-image:linear-gradient(to right,rgba(0,255,102,.04) 1px,transparent 1px),linear-gradient(to bottom,rgba(0,255,102,.04) 1px,transparent 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(120% 80% at 50% 0,#000 30%,transparent 80%);mask-image:radial-gradient(120% 80% at 50% 0,#000 30%,transparent 80%);}
+.scan{position:fixed;inset:0;z-index:60;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.16) 3px,rgba(0,0,0,0) 4px);mix-blend-mode:multiply;}
+.topbar{position:fixed;top:0;left:0;right:0;height:52px;z-index:70;display:flex;align-items:center;justify-content:space-between;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));background:rgba(13,17,23,.85);backdrop-filter:blur(9px);border-bottom:1px solid var(--line);}
+.back{display:inline-flex;align-items:center;gap:8px;color:var(--soft);text-decoration:none;font-size:13px;}
+.back:hover{color:var(--term);}.back .arr{color:var(--term);}
+.tb-mid{font-size:12px;color:var(--mute);display:none;}@media(min-width:680px){.tb-mid{display:block;}}
+.tb-mid b{color:var(--soft);font-weight:500;}
+.pwned{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--mute);}
+.statust{display:inline-flex;align-items:center;gap:5px;color:var(--amber);letter-spacing:.06em;text-transform:uppercase;font-size:11px;}
+.statust::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 7px var(--amber);animation:pls 1.6s ease-in-out infinite;}
+@keyframes pls{0%,100%{opacity:.45;}50%{opacity:1;}}
+.progress{position:fixed;top:52px;left:0;height:2px;width:0;background:var(--term);box-shadow:0 0 9px var(--term);z-index:71;transition:width .08s linear;}
+.hero{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:96px 24px 22px;}
+.crumb{color:var(--term);font-size:12px;letter-spacing:.04em;margin-bottom:16px;}
+.title{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:clamp(46px,12vw,92px);line-height:.92;letter-spacing:-.03em;color:var(--soft);margin:0;position:relative;display:inline-block;text-shadow:0 0 22px rgba(0,255,102,.18);}
+.glitch::before,.glitch::after{content:attr(data-text);position:absolute;inset:0;overflow:hidden;opacity:.85;}
+.glitch::before{left:2px;text-shadow:-1px 0 var(--crim);animation:gt 3.6s infinite linear alternate-reverse;}
+.glitch::after{left:-2px;text-shadow:-1px 0 var(--term);animation:gb 2.8s infinite linear alternate-reverse;}
+@keyframes gt{0%,92%,100%{clip-path:inset(0 0 100% 0);}93%{clip-path:inset(0 0 35% 0);transform:translateX(-3px);}96%{clip-path:inset(12% 0 58% 0);transform:translateX(2px);}}
+@keyframes gb{0%,90%,100%{clip-path:inset(100% 0 0 0);}91%{clip-path:inset(70% 0 8% 0);transform:translateX(3px);}95%{clip-path:inset(54% 0 22% 0);transform:translateX(-2px);}}
+.subtitle{margin-top:14px;color:var(--mute);font-size:14px;}.subtitle b{color:var(--soft);font-weight:500;}
+.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;}
+.badge{font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:4px 11px;border:1px solid var(--line);color:#93a1ad;background:rgba(0,0,0,.25);}
+.badge.win{color:var(--blue);border-color:rgba(77,159,255,.4);background:rgba(77,159,255,.07);}
+.badge.active{color:var(--amber);border-color:rgba(255,176,0,.4);background:rgba(255,176,0,.07);}
+.badge.ad{color:var(--term);border-color:rgba(0,255,102,.4);background:rgba(0,255,102,.07);}
+.badge.crit{color:var(--crim);border-color:rgba(255,51,51,.4);background:rgba(255,51,51,.07);}
+/* kill chain */
+.chain{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin:30px 0 4px;}
+.chain-step{flex:1;min-width:148px;border:1px solid var(--line);background:rgba(22,27,34,.6);padding:13px 15px;}
+.ci{font-size:19px;margin-bottom:7px;}
+.cl{font-family:"Space Grotesk",sans-serif;font-weight:600;color:var(--soft);font-size:13.5px;}
+.cd{font-size:11px;color:var(--mute);margin-top:3px;}
+.ca{display:flex;align-items:center;color:var(--term);font-size:22px;opacity:.5;}
+@media(max-width:760px){.ca{display:none;}.chain-step{min-width:calc(50% - 5px);}}
+/* layout */
+.layout{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:18px 24px 60px;display:grid;grid-template-columns:230px 1fr;gap:44px;}
+@media(max-width:980px){.layout{grid-template-columns:1fr;}.tocwrap{display:none;}}
+.tocwrap{position:sticky;top:78px;align-self:start;max-height:calc(100vh - 100px);overflow:auto;}
+.toctitle{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:10px;padding-left:12px;}
+.toc{display:flex;flex-direction:column;gap:1px;border-left:1px solid var(--line);}
+.toc a{color:var(--mute);text-decoration:none;font-size:12.5px;line-height:1.35;padding:7px 12px;border-left:2px solid transparent;margin-left:-1px;transition:.18s;display:flex;gap:8px;}
+.toc a .tn{color:var(--term);opacity:.6;}
+.toc a:hover{color:var(--soft);}
+.toc a.active{color:var(--term);border-left-color:var(--term);background:rgba(0,255,102,.05);}
+.toc a.active .tn{opacity:1;}
+/* article */
+.article{min-width:0;font-size:14.5px;line-height:1.78;color:#9aa7b4;}
+.section{padding-top:18px;}
+.sec-hdr{display:flex;align-items:center;gap:14px;margin:54px 0 14px;padding-top:26px;border-top:1px solid var(--line);scroll-margin-top:88px;flex-wrap:wrap;}
+.section:first-of-type .sec-hdr{margin-top:6px;border-top:none;padding-top:0;}
+.snum{font-family:"JetBrains Mono",monospace;font-size:18px;color:var(--term);font-weight:500;}
+.sec-title{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:28px;color:var(--soft);}
+.article h3{font-size:17px;color:#ff6b6b;margin:32px 0 8px;font-family:"Space Grotesk",sans-serif;scroll-margin-top:88px;}
+.article h3::before{content:"## ";color:var(--mute);font-weight:400;font-family:"JetBrains Mono",monospace;}
+.article p{margin:13px 0;}
+.article .lead{font-size:15.5px;color:#b1bdc8;}
+.article strong{color:var(--soft);font-weight:600;}
+.article em{color:#b6c2cd;}
+.article ul{margin:13px 0;padding-left:22px;}
+.article li{margin:6px 0;}
+.article li::marker{color:var(--term);}
+.article :not(pre)>code{background:rgba(0,255,102,.08);color:#86ffb6;border:1px solid var(--line);padding:1px 6px;border-radius:2px;font-size:12.5px;word-break:break-word;}
+/* attack path table */
+.path{margin:22px 0;border:1px solid var(--line);background:rgba(22,27,34,.5);}
+.step{display:grid;grid-template-columns:150px 1fr;border-bottom:1px solid var(--line);}
+.step:last-child{border-bottom:none;}
+.step .who{padding:14px 16px;border-right:1px solid var(--line);background:rgba(28,35,44,.5);}
+.step .who .id{color:var(--term);font-weight:600;font-size:13.5px;word-break:break-word;}
+.step .who .lvl{color:var(--mute);font-size:11px;margin-top:2px;}
+.step .what{padding:14px 16px;}
+.step .what .tech{color:var(--soft);font-weight:500;font-size:14px;}
+.step .what .desc{color:var(--mute);font-size:12.5px;margin-top:3px;}
+.step .what .tag{display:inline-block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;border:1px solid var(--line);padding:2px 8px;margin-top:9px;color:var(--term);}
+.step .what .tag.r{color:var(--crim);border-color:rgba(255,51,51,.4);}
+@media(max-width:560px){.step{grid-template-columns:1fr;}.step .who{border-right:none;border-bottom:1px solid var(--line);}}
+/* callouts */
+.callout{display:grid;grid-template-columns:auto 1fr;gap:14px;margin:22px 0;padding:14px 16px;border:1px solid var(--line);border-left-width:3px;background:rgba(28,35,44,.45);font-size:13.5px;}
+.callout .co-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;padding-top:2px;font-weight:600;}
+.callout .co-body{color:#a4b3c0;}.callout .co-body p{margin:0 0 6px;}.callout .co-body p:last-child{margin:0;}
+.callout code{background:rgba(0,255,102,.08);color:#86ffb6;border:1px solid var(--line);padding:1px 6px;word-break:break-word;}
+.callout.note{border-left-color:var(--blue);}.callout.note .co-label{color:var(--blue);}
+.callout.danger{border-left-color:var(--crim);background:rgba(255,51,51,.06);}.callout.danger .co-label{color:var(--crim);}
+.callout.warn{border-left-color:var(--amber);background:rgba(255,176,0,.05);}.callout.warn .co-label{color:var(--amber);}
+.callout.win{border-left-color:var(--term);background:rgba(0,255,102,.045);}.callout.win .co-label{color:var(--term);}
+@media(max-width:560px){.callout{grid-template-columns:1fr;gap:7px;}}
+.foot{position:relative;z-index:1;border-top:1px solid var(--line);padding:28px 24px;text-align:center;color:var(--mute);font-size:12px;}
+.foot a{text-decoration:none;}.eof{color:rgba(0,255,102,.6);margin-top:6px;}
+@media(max-width:620px){
+  .hero{padding:80px 18px 18px;}.layout{padding:14px 18px 48px;}
+  .sec-title{font-size:23px;}.article h3{font-size:15.5px;}.article{font-size:14px;}
+  .tb-mid{display:none;}
+}
+@media(hover:none) and (pointer:coarse){.toc a{padding-top:10px;padding-bottom:10px;}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="scan"></div>
+<div class="progress" id="progress"></div>
+
+<header class="topbar">
+  <a class="back" href="../../index.html#blogs"><span class="arr">&larr;</span> ~/blog</a>
+  <div class="tb-mid"><b>checkpoint.htb</b> &middot; Windows Server 2025 &middot; DC</div>
+  <div class="pwned"><span class="statust">review only</span></div>
+</header>
+
+<section class="hero">
+  <div class="crumb">// writeups / checkpoint.htb</div>
+  <h1 class="title glitch" data-text="CHECKPOINT">CHECKPOINT</h1>
+  <p class="subtitle"><b>Hack The Box</b> &middot; Recycle Bin Abuse &rarr; Malicious .vsix &rarr; BadSuccessor (dMSA) &rarr; VM Memory Forensics &rarr; Root</p>
+  <div class="hero-meta">
+    <span class="badge win">Windows Server 2025</span>
+    <span class="badge active">Active</span>
+    <span class="badge ad">Active Directory</span>
+    <span class="badge ad">dMSA / BadSuccessor</span>
+    <span class="badge ad">DACL Abuse</span>
+    <span class="badge crit">Memory Forensics</span>
+  </div>
+  <div class="chain">
+    <div class="chain-step"><div class="ci">&#128269;</div><div class="cl">Enumeration</div><div class="cd">Writable DACL on a tombstone</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#9851;</div><div class="cl">Recycle Bin</div><div class="cd">Restore + password reuse</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#128230;</div><div class="cl">Foothold</div><div class="cd">Malicious .vsix &rarr; user.txt</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#128081;</div><div class="cl">dMSA Abuse</div><div class="cd">BadSuccessor key theft</div></div>
+    <div class="ca">&#8250;</div>
+    <div class="chain-step"><div class="ci">&#129516;</div><div class="cl">Priv Esc</div><div class="cd">VM memory &rarr; root.txt</div></div>
+  </div>
+</section>
+
+<div class="layout">
+  <aside class="tocwrap">
+    <div class="toctitle">$ cat ./toc</div>
+    <nav class="toc" id="toc">
+      <a href="#overview" data-target="overview"><span class="tn">00</span> Overview</a>
+      <a href="#chain" data-target="chain"><span class="tn">01</span> Attack Path</a>
+      <a href="#recyclebin" data-target="recyclebin"><span class="tn">02</span> AD Recycle Bin Abuse</a>
+      <a href="#vsix" data-target="vsix"><span class="tn">03</span> Malicious .vsix Foothold</a>
+      <a href="#badsuccessor" data-target="badsuccessor"><span class="tn">04</span> BadSuccessor / dMSA</a>
+      <a href="#retro" data-target="retro"><span class="tn">05</span> Retrospective</a>
+      <a href="#forensics" data-target="forensics"><span class="tn">06</span> Memory Forensics</a>
+      <a href="#tooling" data-target="tooling"><span class="tn">07</span> Tooling</a>
+      <a href="#blue" data-target="blue"><span class="tn">08</span> Detection Notes</a>
+    </nav>
+  </aside>
+
+  <article class="article" id="article">
+
+    <section class="section" id="overview">
+      <div class="sec-hdr"><span class="snum">00</span><span class="sec-title">Overview</span></div>
+      <p class="lead">CheckPoint is a Windows Server 2025 domain controller that strings together four distinct Active Directory primitives, ending on one of 2025's most interesting new attack surfaces: <strong>delegated Managed Service Accounts (dMSA)</strong> and the <strong>BadSuccessor</strong> abuse path.</p>
+      <p>You start with a foothold credential and climb through an AD Recycle Bin restore, a password-reuse pivot, a supply-chain-style extension drop, a dMSA DACL abuse, and finally offline credential recovery from a virtual-machine memory snapshot. Because the box is still active, this page is a <strong>conceptual review and attack-path map</strong> &mdash; not a step-by-step solution.</p>
+      <div class="callout warn"><div class="co-label">Active machine</div><div class="co-body"><p>No flags, no instance secrets, and no copy-paste exploitation steps appear on this page. The full technical walkthrough is held privately until CheckPoint retires.</p></div></div>
+    </section>
+
+    <section class="section" id="chain">
+      <div class="sec-hdr"><span class="snum">01</span><span class="sec-title">Attack Path</span></div>
+      <p>Five hops, each one a different AD misconfiguration class:</p>
+      <div class="path">
+        <div class="step"><div class="who"><div class="id">alex.turner</div><div class="lvl">given creds</div></div>
+          <div class="what"><div class="tech">Writable DACL on a deleted object</div>
+          <div class="desc">GenericWrite over a tombstoned user sitting in the AD Recycle Bin.</div>
+          <span class="tag">enumeration</span></div></div>
+        <div class="step"><div class="who"><div class="id">Mark Davies</div><div class="lvl">revived user</div></div>
+          <div class="what"><div class="tech">Restore + password reuse</div>
+          <div class="desc">Revive the object, reuse the known password, inherit WRITE on the extension share.</div>
+          <span class="tag">recycle-bin</span></div></div>
+        <div class="step"><div class="who"><div class="id">ryan.brooks</div><div class="lvl">user.txt</div></div>
+          <div class="what"><div class="tech">Malicious VS Code extension</div>
+          <div class="desc">Drop a weaponized .vsix on the approved-extensions share; it gets executed.</div>
+          <span class="tag">code-exec</span></div></div>
+        <div class="step"><div class="who"><div class="id">svc_deploy</div><div class="lvl">service account</div></div>
+          <div class="what"><div class="tech">BadSuccessor (dMSA) DACL abuse</div>
+          <div class="desc">GenericWrite over svc_deploy &rarr; weaponize a delegated MSA &rarr; inherit its keys.</div>
+          <span class="tag r">dMSA abuse</span></div></div>
+        <div class="step"><div class="who"><div class="id">Administrator</div><div class="lvl">root.txt</div></div>
+          <div class="what"><div class="tech">VM memory snapshot &rarr; credential dump</div>
+          <div class="desc">Recover the local admin hash from a backed-up .vmem / .vmsn and pass it.</div>
+          <span class="tag r">memory forensics</span></div></div>
+      </div>
+    </section>
+
+    <section class="section" id="recyclebin">
+      <div class="sec-hdr"><span class="snum">02</span><span class="sec-title">AD Recycle Bin Abuse</span></div>
+      <p>The starting account holds a writable DACL not over a live principal, but over an object in <code>CN=Deleted Objects</code>. When the AD Recycle Bin is enabled, a deleted user is merely <em>tombstoned</em>, and an attacker with write rights over it can <strong>restore</strong> it back into a normal OU.</p>
+      <p>The trick that makes it useful: the revived account often answers to a <strong>reused password</strong>. Reviving the object and spraying a credential you already control turns a dormant DACL into a live, more-privileged identity &mdash; here, one with write access to a sensitive file share the original account couldn't touch.</p>
+      <div class="callout note"><div class="co-label">Why it works</div><div class="co-body"><p>Write-over-a-tombstone is easy to overlook in BloodHound because the object isn't in the active set. Always enumerate writable permissions against deleted objects, not just live ones.</p></div></div>
+    </section>
+
+    <section class="section" id="vsix">
+      <div class="sec-hdr"><span class="snum">03</span><span class="sec-title">Malicious .vsix Foothold</span></div>
+      <p>The share that the revived user can write to is described as an &ldquo;approved VS&nbsp;Code extensions&rdquo; drop for a specific engine version. A VS&nbsp;Code extension is just a zipped package with a manifest and JavaScript that runs on activation &mdash; so a writable extension share is effectively an <strong>execution primitive</strong> against whoever (or whatever) installs from it.</p>
+      <p>Packaging an extension whose activation logic stages and launches a C2 payload, then dropping it on the share, yields a callback as <code>ryan.brooks</code> and the user flag. This is the same class of issue as a poisoned internal package feed: trust placed in a writable distribution point with no integrity check.</p>
+    </section>
+
+    <section class="section" id="badsuccessor">
+      <div class="sec-hdr"><span class="snum">04</span><span class="sec-title">BadSuccessor / dMSA DACL Abuse</span></div>
+      <p>This is the heart of the box. <strong>Delegated Managed Service Accounts (dMSA)</strong> are a Server&nbsp;2025 feature for migrating a legacy service account to a managed one. The migration is driven by a handful of LDAP attributes &mdash; most importantly <code>msDS-ManagedAccountPrecededByLink</code>, which points the new dMSA at the account it &ldquo;succeeds.&rdquo;</p>
+      <p>The <strong>BadSuccessor</strong> technique (disclosed by Logan Goins / Akamai research) abuses the fact that if you can <em>create or control a dMSA</em> and link it to a target account, the KDC will issue the dMSA a ticket that carries the <strong>keys of the superseded account</strong> &mdash; no password reset, no DCSync. On CheckPoint, <code>ryan.brooks</code> has <code>GenericWrite</code> over <code>svc_deploy</code> and create rights in an OU that holds dMSAs, which is exactly the precondition.</p>
+      <p>The conceptual flow:</p>
+      <ul>
+        <li>Create / weaponize a dMSA whose <code>msDS-ManagedAccountPrecededByLink</code> targets the victim service account.</li>
+        <li>Mark the supersession state so the KDC treats the migration as authoritative.</li>
+        <li>Request a ticket for the dMSA &mdash; the response embeds the victim account's key material.</li>
+      </ul>
+      <div class="callout danger"><div class="co-label">Impact</div><div class="co-body"><p>BadSuccessor converts a single <code>GenericWrite</code> over a service account into full credential takeover of that account, entirely through documented dMSA migration behavior. It needs no elevated rights on the dMSA beyond the ability to set a few attributes.</p></div></div>
+    </section>
+
+    <section class="section" id="retro">
+      <div class="sec-hdr"><span class="snum">05</span><span class="sec-title">Retrospective: What Broke</span></div>
+      <h3>Problem 1 &mdash; Rubeus didn't surface the key I needed</h3>
+      <p>The first pass used <strong>Rubeus</strong> (<code>tgtdeleg</code> &rarr; <code>asktgs /dmsa</code>) to pull the dMSA ticket. It came back with the new dMSA's <strong>AES256</strong> session key &mdash; but not in the form I needed to authenticate <em>as the superseded account</em>. The <strong>RC4 (rc4_hmac) key of the impersonated user</strong> simply wasn't exposed in that output, which stalled the pivot to <code>svc_deploy</code>.</p>
+      <p><strong>Fix:</strong> I pivoted back to <strong>bloodyAD</strong>, authenticating with the Kerberos TGT I'd already obtained for <code>ryan.brooks</code> (the <code>tgtdeleg</code> ticket, used via <code>-k</code>), and ran its <code>add badSuccessor</code> primitive. bloodyAD's output includes the dMSA's <em>previous keys</em> &mdash; i.e. the keys of the preceding managed account it supersedes &mdash; returning both the <strong>RC4 and AES</strong> material for <code>svc_deploy</code>. That was the unlock: tool-output parity, not technique, was the blocker.</p>
+      <div class="callout warn"><div class="co-label">Lesson</div><div class="co-body"><p>Two tools implementing the &ldquo;same&rdquo; attack can expose different fields. When a chain stalls on a missing key/etype, re-run the primitive through a second implementation before assuming the path is wrong. bloodyAD surfaced the superseded-account keys that Rubeus' TGS output didn't hand me directly.</p></div></div>
+      <h3>Problem 2 &mdash; forensics on a credential, not a flag</h3>
+      <p>The final hop isn't an AD bug at all &mdash; it's recovering the local Administrator hash from a <strong>VM memory snapshot</strong> sitting in a backups share. The conceptual issue and its two practical workarounds are covered in the next section.</p>
+    </section>
+
+    <section class="section" id="forensics">
+      <div class="sec-hdr"><span class="snum">06</span><span class="sec-title">Memory Forensics @ Scale</span></div>
+      <p>The backups share holds a virtual machine's memory image (<code>.vmem</code> / <code>.vmsn</code>). Dumping the registry hive's secrets from it yields the local admin hash, which passes straight to a privileged context. The obstacle is purely <strong>logistics</strong>:</p>
+      <div class="callout warn"><div class="co-label">The 2&nbsp;GB problem</div><div class="co-body"><p>A raw memory image is ~2&nbsp;GB. Pulling it down over SMB on an HTB VPN is painfully slow, and you can't realistically run Volatility on the target itself.</p></div></div>
+      <p>Two ways through, both used here:</p>
+      <ul>
+        <li><strong>Relocate + mount.</strong> Copy the memory image from the backups share onto a <em>writable</em> share you control on the same host, then mount that share from your own Kali box using recovered credentials and run <strong>Volatility&nbsp;3</strong> (<code>windows.registry.hashdump</code>) locally. You move the file once, host-to-host, instead of dragging it across the VPN.</li>
+        <li><strong>Parse in place.</strong> Skip Volatility entirely and run a snapshot-aware credential tool (<strong>vmkatz</strong>) directly against the <code>.vmsn</code> on the target, extracting the NTLM hash without ever moving the multi-gigabyte file.</li>
+      </ul>
+      <p>Either path ends with the same local Administrator hash, which is then replayed for the root flag.</p>
+    </section>
+
+    <section class="section" id="tooling">
+      <div class="sec-hdr"><span class="snum">07</span><span class="sec-title">Tooling</span></div>
+      <ul>
+        <li><strong>Enumeration:</strong> nmap, NetExec (nxc), bloodyAD, BloodHound</li>
+        <li><strong>Foothold:</strong> vsce (extension packaging), Havoc C2</li>
+        <li><strong>dMSA / BadSuccessor:</strong> SharpSuccessor, Rubeus, bloodyAD, Get-BadSuccessorOUPermissions</li>
+        <li><strong>Forensics:</strong> Volatility&nbsp;3, vmkatz</li>
+      </ul>
+    </section>
+
+    <section class="section" id="blue">
+      <div class="sec-hdr"><span class="snum">08</span><span class="sec-title">Detection Notes</span></div>
+      <ul>
+        <li><strong>Recycle Bin restores:</strong> alert on object reanimation (Event 5137/5139) and on writable DACLs over <code>CN=Deleted Objects</code>.</li>
+        <li><strong>dMSA abuse:</strong> monitor writes to <code>msDS-ManagedAccountPrecededByLink</code> and <code>msDS-DelegatedMSAState</code>; treat unexpected dMSA creation as high-signal. This is the BadSuccessor IOC.</li>
+        <li><strong>Writable distribution shares:</strong> any share that feeds code into clients (extensions, packages, scripts) needs integrity/signing &mdash; WRITE there is RCE.</li>
+        <li><strong>VM memory backups:</strong> snapshots are plaintext credential stores; restrict and encrypt them.</li>
+      </ul>
+    </section>
+
+  </article>
+</div>
+
+<footer class="foot">
+  <div>&copy; <span id="yr"></span> pr0ph3c &mdash; Ish Bhatt &middot; <a href="../../index.html#blogs">back to portfolio</a></div>
+  <div class="eof">// Recycle Bin &rarr; .vsix RCE &rarr; BadSuccessor (dMSA) &rarr; VM Memory Forensics &rarr; Root &middot; EOF</div>
+</footer>
+
+<script>
+(function(){
+  document.getElementById('yr').textContent=new Date().getFullYear();
+  var links=Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var ids=links.map(function(l){return l.getAttribute('data-target');});
+  var spy=new IntersectionObserver(function(ents){
+    ents.forEach(function(e){
+      if(e.isIntersecting){links.forEach(function(l){l.classList.toggle('active',l.getAttribute('data-target')===e.target.id);});}
+    });
+  },{rootMargin:'-10% 0px -78% 0px'});
+  ids.forEach(function(id){var s=document.getElementById(id);if(s)spy.observe(s);});
+  var prog=document.getElementById('progress');
+  function onScroll(){var d=document.documentElement;var max=d.scrollHeight-d.clientHeight;prog.style.width=(max>0?(d.scrollTop/max*100):0)+'%';}
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+})();
+</script>
+</body>
+</html>
